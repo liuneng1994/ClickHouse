@@ -66,7 +66,6 @@ jint JNI_OnLoad(JavaVM * vm, void * reserved)
 
 void JNI_OnUnload(JavaVM * vm, void * reserved)
 {
-    std::cerr << "JNI_OnUnload" << std::endl;
     JNIEnv * env;
     vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_8);
 

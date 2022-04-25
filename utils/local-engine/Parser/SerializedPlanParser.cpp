@@ -589,7 +589,7 @@ DB::QueryPlanPtr local_engine::SerializedPlanParser::parse(std::string & plan)
 {
     auto plan_ptr = std::make_unique<substrait::Plan>();
     plan_ptr->ParseFromString(plan);
-    std::cerr << plan_ptr->DebugString() <<std::endl;
+//    std::cerr << plan_ptr->DebugString() <<std::endl;
     return parse(std::move(plan_ptr));
 }
 void local_engine::SerializedPlanParser::initFunctionEnv()
