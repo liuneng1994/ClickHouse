@@ -88,7 +88,7 @@ DB::QueryPlanPtr local_engine::SerializedPlanParser::parseMergeTreeTable(const s
     auto metadata = local_engine::buildMetaData(names_and_types_list, this->context);
     auto t_metadata = watch.elapsedMicroseconds();
     query_context.metadata = metadata;
-    auto storage = storageFactory.getStorage(DB::StorageID(merge_tree_table.database, merge_tree_table.table), [merge_tree_table, metadata]() -> local_engine::CustomStorageMergeTreePtr {
+    auto storage = storageFactory.getStorage(DB::StorageID(merge_tree_table.database, merge_tree_table.table), metadata->getColumns(), [merge_tree_table, metadata]() -> local_engine::CustomStorageMergeTreePtr {
                 auto  custom_storage_merge_tree = std::make_shared<local_engine::CustomStorageMergeTree>(
                     DB::StorageID(merge_tree_table.database, merge_tree_table.table),
                     merge_tree_table.relative_path,
