@@ -673,7 +673,7 @@ void local_engine::LocalExecutor::execute(DB::QueryPlanPtr query_plan)
                                                                                      .actions_settings = ExpressionActionsSettings{
                                                                                          .can_compile_expressions = true,
                                                                                          .min_count_to_compile_expression = 3,
-                                                                                     .compile_expressions = CompileExpressions::no
+                                                                                     .compile_expressions = CompileExpressions::yes
                                                                                     }});
     this->query_pipeline = QueryPipelineBuilder::getPipeline(std::move(*pipeline_builder));
     auto t_pipeline = stopwatch.elapsedMicroseconds();

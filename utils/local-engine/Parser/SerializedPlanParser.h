@@ -147,8 +147,8 @@ private:
             nullptr,
             settings.max_threads,
             settings.min_free_disk_space_for_temporary_data,
-            false,
-            settings.min_count_to_compile_aggregate_expression);
+            true,
+            3);
     }
 
     Aggregator::Params getMergedAggregateParam(const Block & header, const ColumnNumbers & keys, const AggregateDescriptions & aggregates)
