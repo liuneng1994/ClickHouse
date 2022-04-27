@@ -378,7 +378,8 @@ DB::QueryPlanStepPtr local_engine::SerializedPlanParser::parseAggregate(DB::Quer
             }
         }
     }
-    else
+    // only support one grouping or no grouping
+    else if (rel.groupings_size() != 0)
     {
         throw std::runtime_error("too many groupings");
     }
