@@ -29,6 +29,10 @@
 #include <Storages/StorageMergeTreeFactory.h>
 #include <Poco/Util/MapConfiguration.h>
 #include <Storages/BatchParquetFileSource.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Interpreters/HashJoin.h>
+#include <Processors/QueryPlan/JoinStep.h>
+
 #include <base/logger_useful.h>
 using namespace DB;
 
@@ -67,6 +71,7 @@ QueryPlanPtr SerializedPlanParser::parseReadRealWithJavaIter(const substrait::Re
     auto pos = iter.find(':');
     auto iter_index = std::stoi(iter.substr(pos+1, iter.size()));
     auto plan = std::make_unique<QueryPlan>();
+    std::cerr << "java iter input size:" << std::to_string(input_iters.size()) << std::endl;
     auto source = std::make_shared<SourceFromJavaIter>(parseNameStruct(rel.base_schema()), input_iters[iter_index], vm);
     QueryPlanStepPtr source_step = std::make_unique<ReadFromPreparedSource>(Pipe(source), context);
     plan->addStep(std::move(source_step));
@@ -241,6 +246,7 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
         {
             const auto & project = rel.project();
             QueryPlanPtr query_plan = parseOp(project.input());
+            std::cerr << "project input: " << query_plan->getCurrentDataStream().header.dumpNames() << std::endl;
             const auto & expressions = project.expressions();
             auto actions_dag = std::make_shared<ActionsDAG>(blockToNameAndTypeList(query_plan->getCurrentDataStream().header));
             NamesWithAliases required_columns;
@@ -256,9 +262,8 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
                     std::string name;
                     actions_dag = parseFunction(query_plan->getCurrentDataStream(), expr, name, actions_dag, true);
                     if (!name.empty()) {
-
+                        required_columns.emplace_back(NameWithAlias (name, name));
                     }
-                    required_columns.emplace_back(NameWithAlias (name, name));
                 }
                 else if (expr.has_literal())
                 {
@@ -306,6 +311,20 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
                 query_plan = parseMergeTreeTable(read);
             }
             return query_plan;
+        }
+        case substrait::Rel::RelTypeCase::kJoin:
+        {
+            const auto& join = rel.join();
+            if (!join.has_left() || !join.has_right())
+            {
+                throw std::runtime_error("left table or right table is missing.");
+            }
+            auto left_plan = parseOp(join.left());
+            auto right_plan = parseOp(join.right());
+            std::cerr << "join left input: " << left_plan->getCurrentDataStream().header.dumpNames() << std::endl;
+            std::cerr << "join right input: " << right_plan->getCurrentDataStream().header.dumpNames() << std::endl;
+
+            return parseJoin(join, std::move(left_plan), std::move(right_plan));
         }
         default:
             throw std::runtime_error("doesn't support relation type " + std::to_string(rel.rel_type_case()));
@@ -393,7 +412,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         AggregateDescription agg;
         auto function_signature = this->function_mapping.at(std::to_string(measure.measure().function_reference()));
         auto function_name_idx = function_signature.find(':');
-        assert(function_name_idx != function_signature.npos && ("invalid function signature: " + function_signature).c_str());
+//        assert(function_name_idx != function_signature.npos && ("invalid function signature: " + function_signature).c_str());
         auto function_name = function_signature.substr(0, function_name_idx);
         if (only_merge)
         {
@@ -462,7 +481,7 @@ void join(ActionsDAG::NodeRawConstPtrs v, char c, std::string & s)
 std::string SerializedPlanParser::getFunctionName(std::string function_signature, const substrait::Type& output_type)
 {
     auto function_name_idx = function_signature.find(':');
-    assert(function_name_idx != function_signature.npos && ("invalid function signature: " + function_signature).c_str());
+//    assert(function_name_idx != function_signature.npos && ("invalid function signature: " + function_signature).c_str());
     auto function_name = function_signature.substr(0, function_name_idx);
     if (!SCALAR_FUNCTIONS.contains(function_name))
     {
@@ -630,7 +649,7 @@ QueryPlanPtr SerializedPlanParser::parse(std::string & plan)
 {
     auto plan_ptr = std::make_unique<substrait::Plan>();
     plan_ptr->ParseFromString(plan);
-//    std::cerr << plan_ptr->DebugString() <<std::endl;
+    LOG_DEBUG(&Poco::Logger::get("SerializedPlanParser"), "parse plan {}", plan_ptr->DebugString());
     return parse(std::move(plan_ptr));
 }
 void SerializedPlanParser::initFunctionEnv()
@@ -644,6 +663,44 @@ SerializedPlanParser::SerializedPlanParser(const ContextPtr & context_) : contex
 ContextMutablePtr SerializedPlanParser::global_context = nullptr;
 
 Context::ConfigurationPtr SerializedPlanParser::config = Poco::AutoPtr(new Poco::Util::MapConfiguration());
+DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::QueryPlanPtr left, DB::QueryPlanPtr right)
+{
+    auto table_join = std::make_shared<TableJoin>(global_context->getSettings(), global_context->getTemporaryVolume());
+    if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_INNER)
+    {
+        table_join->setKind(DB::ASTTableJoin::Kind::Inner);
+        table_join->setStrictness(DB::ASTTableJoin::Strictness::All);
+    }
+    else
+    {
+        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported join type {}.", magic_enum::enum_name(join.type()));
+        throw std::runtime_error("unsupported join type");
+    }
+    table_join->addDisjunct();
+    auto left_key_idx = join.expression().scalar_function().args(0).selection().direct_reference().struct_field().field();
+    auto right_key_idx = join.expression().scalar_function().args(1).selection().direct_reference().struct_field().field() - left->getCurrentDataStream().header.columns();
+    ASTPtr left_key = std::make_shared<ASTIdentifier>(left->getCurrentDataStream().header.getByPosition(left_key_idx).name);
+    ASTPtr right_key = std::make_shared<ASTIdentifier>(right->getCurrentDataStream().header.getByPosition(right_key_idx).name);
+    table_join->addOnKeys(left_key, right_key);
+    ColumnWithTypeAndName right_key_column = right->getCurrentDataStream().header.getByPosition(right_key_idx);
+    NameAndTypePair right_key_type(right_key_column.name, right_key_column.type);
+    table_join->addJoinedColumn(right_key_type);
+    auto hash_join = std::make_shared<HashJoin>(table_join, right->getCurrentDataStream().header.cloneEmpty());
+    QueryPlanStepPtr join_step = std::make_unique<DB::JoinStep>(
+        left->getCurrentDataStream(),
+        right->getCurrentDataStream(),
+        hash_join,
+        8192);
+
+    join_step->setStepDescription("JOIN");
+    std::vector<QueryPlanPtr> plans;
+    plans.emplace_back(std::move(left));
+    plans.emplace_back(std::move(right));
+
+    auto query_plan = std::make_unique<QueryPlan>();
+    query_plan->unitePlans(std::move(join_step), {std::move(plans)});
+    return query_plan;
+}
 
 SharedContextHolder SerializedPlanParser::shared_context;
 

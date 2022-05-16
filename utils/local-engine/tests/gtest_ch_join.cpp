@@ -15,6 +15,8 @@
 
 #include <Interpreters/TableJoin.h>
 #include <Interpreters/HashJoin.h>
+#include <Interpreters/JoinSwitcher.h>
+
 
 using namespace DB;
 using namespace local_engine;
@@ -53,7 +55,7 @@ TEST(TestJoin, simple)
     column4->insert(5);
     column4->insert(9);
 
-    ColumnsWithTypeAndName columns2 = {ColumnWithTypeAndName(std::move(column3),int_type, "colA"),
+    ColumnsWithTypeAndName columns2 = {ColumnWithTypeAndName(std::move(column3),int_type, "colD"),
                                       ColumnWithTypeAndName(std::move(column4),int_type, "colC")};
     Block right(columns2);
 
@@ -68,9 +70,11 @@ TEST(TestJoin, simple)
     join->setKind(ASTTableJoin::Kind::Inner);
     join->setStrictness(ASTTableJoin::Strictness::All);
     join->addDisjunct();
-    auto key = std::make_shared<ASTIdentifier>("colA");
-    join->addUsingKey(key);
-
+    ASTPtr lkey = std::make_shared<ASTIdentifier>("colA");
+    ASTPtr rkey = std::make_shared<ASTIdentifier>("colD");
+    join->addOnKeys(lkey, rkey);
+    auto required_rkey = NameAndTypePair("colD", int_type);
+    join->addJoinedColumn(required_rkey);
     auto hash_join = std::make_shared<HashJoin>(join, right);
 
     QueryPlanStepPtr join_step = std::make_unique<JoinStep>(
