@@ -358,6 +358,12 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
             auto name = input.header.getByPosition(arg.selection().direct_reference().struct_field().field()).name;
             measure_names.emplace_back(name);
         }
+        else if (arg.has_literal())
+        {
+            auto node = parseArgument(expression, arg);
+            expression->addOrReplaceInIndex(*node);
+            measure_names.emplace_back(node->result_name);
+        }
         else
         {
             throw std::runtime_error("unsupported aggregate argument type.");
@@ -678,6 +684,21 @@ DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::Qu
     if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_INNER)
     {
         table_join->setKind(DB::ASTTableJoin::Kind::Inner);
+        table_join->setStrictness(DB::ASTTableJoin::Strictness::All);
+    }
+    else if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_SEMI)
+    {
+        table_join->setKind(DB::ASTTableJoin::Kind::Left);
+        table_join->setStrictness(DB::ASTTableJoin::Strictness::Semi);
+    }
+    else if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_ANTI)
+    {
+        table_join->setKind(DB::ASTTableJoin::Kind::Left);
+        table_join->setStrictness(DB::ASTTableJoin::Strictness::Anti);
+    }
+    else if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_LEFT)
+    {
+        table_join->setKind(DB::ASTTableJoin::Kind::Left);
         table_join->setStrictness(DB::ASTTableJoin::Strictness::All);
     }
     else
