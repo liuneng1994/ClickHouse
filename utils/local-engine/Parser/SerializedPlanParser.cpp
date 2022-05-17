@@ -7,6 +7,7 @@
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeAggregateFunction.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/registerFunctions.h>
 #include <Interpreters/ActionsDAG.h>
@@ -424,7 +425,15 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         }
         agg.arguments = ColumnNumbers{plan.getCurrentDataStream().header.getPositionByName(measure_names.at(i))};
         agg.argument_names = Names{measure_names.at(i)};
-        agg.function = getAggregateFunction(function_name, {plan.getCurrentDataStream().header.getByName(measure_names.at(i)).type});
+        auto arg_type = plan.getCurrentDataStream().header.getByName(measure_names.at(i)).type;
+        if (auto function_type = checkAndGetDataType<DataTypeAggregateFunction>(arg_type.get()))
+        {
+            agg.function = getAggregateFunction(function_name, {function_type->getReturnType()});
+        }
+        else
+        {
+            agg.function = getAggregateFunction(function_name, {arg_type});
+        }
         aggregates.push_back(agg);
     }
 
