@@ -10,6 +10,7 @@
 #include <Processors/Sources/SourceFromSingleChunk.h>
 #include <Processors/QueryPlan/ReadFromPreparedSource.h>
 #include <Processors/QueryPlan/JoinStep.h>
+#include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Parsers/ASTIdentifier.h>
 
@@ -70,11 +71,14 @@ TEST(TestJoin, simple)
     join->setKind(ASTTableJoin::Kind::Inner);
     join->setStrictness(ASTTableJoin::Strictness::All);
     join->addDisjunct();
+    auto required_rkey = NameAndTypePair("colD", int_type);
+    join->addJoinedColumn(required_rkey);
+    join->addJoinedColumn(NameAndTypePair("colC", int_type));
     ASTPtr lkey = std::make_shared<ASTIdentifier>("colA");
     ASTPtr rkey = std::make_shared<ASTIdentifier>("colD");
     join->addOnKeys(lkey, rkey);
-    auto required_rkey = NameAndTypePair("colD", int_type);
-    join->addJoinedColumn(required_rkey);
+
+
     auto hash_join = std::make_shared<HashJoin>(join, right);
 
     QueryPlanStepPtr join_step = std::make_unique<JoinStep>(
@@ -84,12 +88,19 @@ TEST(TestJoin, simple)
         8192);
 
     join_step->setStepDescription("JOIN");
+
+
     std::vector<QueryPlanPtr> plans;
     plans.emplace_back(std::make_unique<QueryPlan>(std::move(left_plan)));
     plans.emplace_back(std::make_unique<QueryPlan>(std::move(right_plan)));
 
     auto query_plan = QueryPlan();
     query_plan.unitePlans(std::move(join_step), {std::move(plans)});
+
+    ActionsDAGPtr project = std::make_shared<ActionsDAG>(query_plan.getCurrentDataStream().header.getNamesAndTypesList());
+    project->project({NameWithAlias("colA", "colA"),NameWithAlias("colB", "colB"),NameWithAlias("colD", "colD"),NameWithAlias("colC", "colC")});
+    QueryPlanStepPtr project_step = std::make_unique<ExpressionStep>(query_plan.getCurrentDataStream(), project);
+    query_plan.addStep(std::move(project_step));
     auto pipeline = query_plan.buildQueryPipeline(QueryPlanOptimizationSettings(), BuildQueryPipelineSettings());
     auto executable_pipe = QueryPipelineBuilder::getPipeline(std::move(*pipeline));
     PullingPipelineExecutor executor(executable_pipe);

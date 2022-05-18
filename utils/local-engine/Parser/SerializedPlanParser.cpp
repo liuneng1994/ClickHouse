@@ -723,13 +723,33 @@ DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::Qu
         8192);
 
     join_step->setStepDescription("JOIN");
+
+    Names after_join_names;
+    auto left_names = left->getCurrentDataStream().header.getNames();
+    after_join_names.insert(after_join_names.end(), left_names.begin(), left_names.end());
+    auto right_name = right->getCurrentDataStream().header.getNames();
+    after_join_names.insert(after_join_names.end(), right_name.begin(), right_name.end());
+
     std::vector<QueryPlanPtr> plans;
     plans.emplace_back(std::move(left));
     plans.emplace_back(std::move(right));
 
     auto query_plan = std::make_unique<QueryPlan>();
     query_plan->unitePlans(std::move(join_step), {std::move(plans)});
+    reorderJoinOutput(*query_plan, after_join_names);
     return query_plan;
+}
+void SerializedPlanParser::reorderJoinOutput(QueryPlan & plan, DB::Names cols)
+{
+    ActionsDAGPtr project = std::make_shared<ActionsDAG>(plan.getCurrentDataStream().header.getNamesAndTypesList());
+    NamesWithAliases project_cols;
+    for (const auto & col : cols)
+    {
+        project_cols.emplace_back(NameWithAlias(col, col));
+    }
+    project->project(project_cols);
+    QueryPlanStepPtr project_step = std::make_unique<ExpressionStep>(plan.getCurrentDataStream(), project);
+    plan.addStep(std::move(project_step));
 }
 
 SharedContextHolder SerializedPlanParser::shared_context;
