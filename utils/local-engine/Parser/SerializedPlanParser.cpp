@@ -23,7 +23,6 @@
 #include <Processors/QueryPlan/LimitStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Processors/QueryPlan/ReadFromPreparedSource.h>
-#include <Poco/URI.h>
 #include <Common/MergeTreeTool.h>
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <Storages/CustomStorageMergeTree.h>
@@ -54,8 +53,7 @@ QueryPlanPtr SerializedPlanParser::parseReadRealWithLocalFile(const substrait::R
     auto files_info = std::make_shared<FilesInfo>();
     for (const auto & item : rel.local_files().items())
     {
-        Poco::URI uri(item.uri_file());
-        files_info->files.push_back(uri.getPath());
+        files_info->files.push_back(item.uri_file());
     }
     auto query_plan = std::make_unique<QueryPlan>();
     std::shared_ptr<IProcessor> source = std::make_shared<BatchParquetFileSource>(files_info, parseNameStruct(rel.base_schema()), context);
