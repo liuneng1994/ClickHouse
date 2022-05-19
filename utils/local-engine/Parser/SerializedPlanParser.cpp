@@ -72,7 +72,6 @@ QueryPlanPtr SerializedPlanParser::parseReadRealWithJavaIter(const substrait::Re
     auto pos = iter.find(':');
     auto iter_index = std::stoi(iter.substr(pos+1, iter.size()));
     auto plan = std::make_unique<QueryPlan>();
-    std::cerr << "java iter input size:" << std::to_string(input_iters.size()) << std::endl;
     auto source = std::make_shared<SourceFromJavaIter>(parseNameStruct(rel.base_schema()), input_iters[iter_index], vm);
     QueryPlanStepPtr source_step = std::make_unique<ReadFromPreparedSource>(Pipe(source), context);
     plan->addStep(std::move(source_step));
@@ -247,7 +246,6 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
         {
             const auto & project = rel.project();
             QueryPlanPtr query_plan = parseOp(project.input());
-            std::cerr << "project input: " << query_plan->getCurrentDataStream().header.dumpNames() << std::endl;
             const auto & expressions = project.expressions();
             auto actions_dag = std::make_shared<ActionsDAG>(blockToNameAndTypeList(query_plan->getCurrentDataStream().header));
             NamesWithAliases required_columns;
@@ -322,8 +320,6 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
             }
             auto left_plan = parseOp(join.left());
             auto right_plan = parseOp(join.right());
-            std::cerr << "join left input: " << left_plan->getCurrentDataStream().header.dumpNames() << std::endl;
-            std::cerr << "join right input: " << right_plan->getCurrentDataStream().header.dumpNames() << std::endl;
 
             return parseJoin(join, std::move(left_plan), std::move(right_plan));
         }
@@ -707,14 +703,23 @@ DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::Qu
         throw std::runtime_error("unsupported join type");
     }
     table_join->addDisjunct();
-    auto left_key_idx = join.expression().scalar_function().args(0).selection().direct_reference().struct_field().field();
-    auto right_key_idx = join.expression().scalar_function().args(1).selection().direct_reference().struct_field().field() - left->getCurrentDataStream().header.columns();
-    ASTPtr left_key = std::make_shared<ASTIdentifier>(left->getCurrentDataStream().header.getByPosition(left_key_idx).name);
-    ASTPtr right_key = std::make_shared<ASTIdentifier>(right->getCurrentDataStream().header.getByPosition(right_key_idx).name);
-    table_join->addOnKeys(left_key, right_key);
-    ColumnWithTypeAndName right_key_column = right->getCurrentDataStream().header.getByPosition(right_key_idx);
-    NameAndTypePair right_key_type(right_key_column.name, right_key_column.type);
-    table_join->addJoinedColumn(right_key_type);
+
+    // support multiple join key
+    bool multiple_keys = join.expression().scalar_function().args(0).has_scalar_function();
+    auto join_key_num = multiple_keys ? join.expression().scalar_function().args_size() : 1;
+    for (int32_t i = 0; i < join_key_num; i++)
+    {
+        auto function = multiple_keys ? join.expression().scalar_function().args(i).scalar_function() : join.expression().scalar_function();
+        auto left_key_idx = function.args(0).selection().direct_reference().struct_field().field();
+        auto right_key_idx = function.args(1).selection().direct_reference().struct_field().field() - left->getCurrentDataStream().header.columns();
+        ASTPtr left_key = std::make_shared<ASTIdentifier>(left->getCurrentDataStream().header.getByPosition(left_key_idx).name);
+        ASTPtr right_key = std::make_shared<ASTIdentifier>(right->getCurrentDataStream().header.getByPosition(right_key_idx).name);
+        table_join->addOnKeys(left_key, right_key);
+        ColumnWithTypeAndName right_key_column = right->getCurrentDataStream().header.getByPosition(right_key_idx);
+        NameAndTypePair right_key_type(right_key_column.name, right_key_column.type);
+        table_join->addJoinedColumn(right_key_type);
+    }
+
     auto hash_join = std::make_shared<HashJoin>(table_join, right->getCurrentDataStream().header.cloneEmpty());
     QueryPlanStepPtr join_step = std::make_unique<DB::JoinStep>(
         left->getCurrentDataStream(),
