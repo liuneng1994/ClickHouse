@@ -24,20 +24,36 @@ static const std::map<std::string, std::string> SCALAR_FUNCTIONS = {
     {"is_not_null","isNotNull"},
     {"gte","greaterOrEquals"},
     {"gt", "greater"},
-    {"and", "and"},
     {"lte", "lessOrEquals"},
     {"lt", "less"},
-    {"TO_DATE", "toDate"},
     {"equal", "equals"},
+
+
+    {"and", "and"},
+    {"or", "or"},
+    {"not", "not"},
+    {"xor", "xor"},
+
+
+    {"TO_DATE", "toDate"},
     {"cast", ""},
     {"alias", "alias"},
+
     {"subtract", "minus"},
     {"multiply", "multiply"},
     {"add", "plus"},
+    {"divide", "divide"},
+    {"modulus", "modulo"},
+
+
+    {"like", "like"},
+    {"not_like", "notLike"},
     // aggregate functions
     {"count", "count"},
     {"avg", "avg"},
-    {"sum", "sum"}
+    {"sum", "sum"},
+    {"min", "min"},
+    {"max", "max"}
 };
 
 static const std::set<std::string> FUNCTION_NEED_KEEP_ARGUMENTS = {"alias"};
