@@ -1,11 +1,13 @@
 #include "SerializedPlanParser.h"
 #include <AggregateFunctions/AggregateFunctionFactory.h>
 #include <AggregateFunctions/registerAggregateFunctions.h>
+#include <Columns/ColumnSet.h>
 #include <Core/Block.h>
 #include <Core/Names.h>
 #include <Core/NamesAndTypes.h>
 #include <DataTypes/DataTypeAggregateFunction.h>
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeSet.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
@@ -225,28 +227,29 @@ QueryPlanPtr SerializedPlanParser::parse(std::unique_ptr<substrait::Plan> plan)
 
 QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
 {
+    QueryPlanPtr query_plan;
     switch (rel.rel_type_case())
     {
         case substrait::Rel::RelTypeCase::kFetch: {
             const auto & limit = rel.fetch();
-            QueryPlanPtr query_plan = parseOp(limit.input());
+            query_plan = parseOp(limit.input());
             auto limit_step = std::make_unique<LimitStep>(query_plan->getCurrentDataStream(), limit.count(), limit.offset());
             query_plan->addStep(std::move(limit_step));
-            return query_plan;
+            break;
         }
         case substrait::Rel::RelTypeCase::kFilter: {
             const auto & filter = rel.filter();
-            QueryPlanPtr query_plan = parseOp(filter.input());
+            query_plan = parseOp(filter.input());
             std::string filter_name;
             auto actions_dag = parseFunction(query_plan->getCurrentDataStream(), filter.condition(), filter_name, nullptr, true);
             //            actions_dag->removeUnusedActions(query_plan->getCurrentDataStream().header.getNames());
             auto filter_step = std::make_unique<FilterStep>(query_plan->getCurrentDataStream(), actions_dag, filter_name, true);
             query_plan->addStep(std::move(filter_step));
-            return query_plan;
+            break;
         }
         case substrait::Rel::RelTypeCase::kProject: {
             const auto & project = rel.project();
-            QueryPlanPtr query_plan = parseOp(project.input());
+            query_plan = parseOp(project.input());
             const auto & expressions = project.expressions();
             auto actions_dag = std::make_shared<ActionsDAG>(blockToNameAndTypeList(query_plan->getCurrentDataStream().header));
             NamesWithAliases required_columns;
@@ -268,9 +271,15 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
                 }
                 else if (expr.has_literal())
                 {
-                    auto const_col = parseArgument(actions_dag, expr);
+                    const auto * const_col = parseArgument(actions_dag, expr);
                     actions_dag->addOrReplaceInIndex(*const_col);
                     required_columns.emplace_back(NameWithAlias(const_col->result_name, const_col->result_name));
+                }
+                else if (expr.has_cast())
+                {
+                    const auto * node = parseArgument(actions_dag, expr);
+                    actions_dag->addOrReplaceInIndex(*node);
+                    required_columns.emplace_back(NameWithAlias(node->result_name, node->result_name));
                 }
                 else
                 {
@@ -280,19 +289,18 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
             actions_dag->project(required_columns);
             auto expression_step = std::make_unique<ExpressionStep>(query_plan->getCurrentDataStream(), actions_dag);
             query_plan->addStep(std::move(expression_step));
-            return query_plan;
+            break;
         }
         case substrait::Rel::RelTypeCase::kAggregate: {
             const auto & aggregate = rel.aggregate();
-            QueryPlanPtr query_plan = parseOp(aggregate.input());
+            query_plan = parseOp(aggregate.input());
             auto aggregate_step = parseAggregate(*query_plan, aggregate);
             query_plan->addStep(std::move(aggregate_step));
-            return query_plan;
+            break;
         }
         case substrait::Rel::RelTypeCase::kRead: {
             const auto & read = rel.read();
             assert(read.has_local_files() || read.has_extension_table() && "Only support local parquet files or merge tree read rel");
-            QueryPlanPtr query_plan;
             if (read.has_local_files())
             {
                 if (isReadRelFromJava(read))
@@ -308,7 +316,7 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
             {
                 query_plan = parseMergeTreeTable(read);
             }
-            return query_plan;
+            break;
         }
         case substrait::Rel::RelTypeCase::kJoin: {
             const auto & join = rel.join();
@@ -319,11 +327,14 @@ QueryPlanPtr SerializedPlanParser::parseOp(const substrait::Rel & rel)
             auto left_plan = parseOp(join.left());
             auto right_plan = parseOp(join.right());
 
-            return parseJoin(join, std::move(left_plan), std::move(right_plan));
+            query_plan = parseJoin(join, std::move(left_plan), std::move(right_plan));
+            break;
         }
         default:
-            throw std::runtime_error("doesn't support relation type " + std::to_string(rel.rel_type_case()));
+            throw std::runtime_error("doesn't support relation type");
     }
+    LOG_TRACE(&Poco::Logger::get("SerializedPlanParser"), "{} output:\n{}", magic_enum::enum_name(rel.rel_type_case()), query_plan->getCurrentDataStream().header.dumpStructure());
+    return query_plan;
 }
 
 AggregateFunctionPtr getAggregateFunction(const std::string & name, DataTypes arg_types)
@@ -340,8 +351,13 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
     std::vector<std::string> measure_names;
     for (const auto & measure : rel.measures())
     {
-        assert(measure.measure().args_size() == 1 && "only support one argument aggregate function");
+        if (measure.measure().args_size() != 1)
+        {
+            LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "only support one argument aggregate function");
+            throw std::runtime_error("only support one argument aggregate function");
+        }
         auto arg = measure.measure().args(0);
+
         if (arg.has_scalar_function())
         {
             std::string name;
@@ -355,12 +371,13 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         }
         else if (arg.has_literal())
         {
-            auto node = parseArgument(expression, arg);
+            const auto * node = parseArgument(expression, arg);
             expression->addOrReplaceInIndex(*node);
             measure_names.emplace_back(node->result_name);
         }
         else
         {
+            LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported aggregate argument type.");
             throw std::runtime_error("unsupported aggregate argument type.");
         }
     }
@@ -375,7 +392,8 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
     }
     if (phase_set.size() > 1)
     {
-        throw std::runtime_error("two many aggregate phase!");
+        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "two many aggregate phase!");
+        throw std::runtime_error("too many aggregate phase!");
     }
     bool final = true;
     if (phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE)
@@ -396,6 +414,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
             }
             else
             {
+                LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported group expression");
                 throw std::runtime_error("unsupported group expression");
             }
         }
@@ -403,6 +422,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
     // only support one grouping or no grouping
     else if (rel.groupings_size() != 0)
     {
+        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "too many groupings");
         throw std::runtime_error("too many groupings");
     }
 
@@ -490,7 +510,8 @@ std::string SerializedPlanParser::getFunctionName(std::string function_signature
     auto function_name = function_signature.substr(0, function_name_idx);
     if (!SCALAR_FUNCTIONS.contains(function_name))
     {
-        throw std::runtime_error("doesn't support function " + function_name);
+        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "doesn't support function {}", function_name);
+        throw std::runtime_error("unsupported function");
     }
     std::string ch_function_name;
     if (function_name == "cast")
@@ -516,15 +537,16 @@ std::string SerializedPlanParser::getFunctionName(std::string function_signature
     return ch_function_name;
 }
 
-ActionsDAGPtr SerializedPlanParser::parseFunction(
-    const DataStream & input, const substrait::Expression & rel, std::string & result_name, ActionsDAGPtr actions_dag, bool keep_result)
+DB::ActionsDAGPtr SerializedPlanParser::parseFunctionWithDAG(
+    const substrait::Expression & rel, string & result_name, DB::ActionsDAGPtr actions_dag, bool keep_result)
 {
-    assert(rel.has_scalar_function() && "the root of expression should be a scalar function");
-    const auto & scalar_function = rel.scalar_function();
-    if (!actions_dag)
+    if (!rel.has_scalar_function())
     {
-        actions_dag = std::make_shared<ActionsDAG>(blockToNameAndTypeList(input.header));
+        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "the root of expression should be a scalar function");
+        throw std::runtime_error("the root of expression should be a scalar function");
     }
+    const auto & scalar_function = rel.scalar_function();
+
     auto function_signature = this->function_mapping.at(std::to_string(rel.scalar_function().function_reference()));
     auto function_name = getFunctionName(function_signature, rel.scalar_function().output_type());
     ActionsDAG::NodeRawConstPtrs args;
@@ -534,7 +556,7 @@ ActionsDAGPtr SerializedPlanParser::parseFunction(
         {
             std::string arg_name;
             bool keep_arg = FUNCTION_NEED_KEEP_ARGUMENTS.contains(function_name);
-            parseFunction(input, arg, arg_name, actions_dag, keep_arg);
+            parseFunctionWithDAG(arg, arg_name, actions_dag, keep_arg);
             args.emplace_back(&actions_dag->getNodes().back());
         }
         else
@@ -560,6 +582,17 @@ ActionsDAGPtr SerializedPlanParser::parseFunction(
     return actions_dag;
 }
 
+ActionsDAGPtr SerializedPlanParser::parseFunction(
+    const DataStream & input, const substrait::Expression & rel, std::string & result_name, ActionsDAGPtr actions_dag, bool keep_result)
+{
+    const auto & scalar_function = rel.scalar_function();
+    if (!actions_dag)
+    {
+        actions_dag = std::make_shared<ActionsDAG>(blockToNameAndTypeList(input.header));
+    }
+    return parseFunctionWithDAG(rel, result_name, actions_dag, keep_result);
+}
+
 const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr action_dag, const substrait::Expression & rel)
 {
     switch (rel.rex_type_case())
@@ -583,6 +616,11 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
                     return &action_dag->addColumn(
                         ColumnWithTypeAndName(type->createColumnConst(1, literal.string()), type, getUniqueName(literal.string())));
                 }
+                case substrait::Expression_Literal::kI64: {
+                    auto type = std::make_shared<DataTypeInt64>();
+                    return &action_dag->addColumn(ColumnWithTypeAndName(
+                        type->createColumnConst(1, literal.i64()), type, getUniqueName(std::to_string(literal.i64()))));
+                }
                 case substrait::Expression_Literal::kI32: {
                     auto type = std::make_shared<DataTypeInt32>();
                     return &action_dag->addColumn(ColumnWithTypeAndName(
@@ -600,21 +638,129 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
                 }
                 case substrait::Expression_Literal::kI8: {
                     auto type = std::make_shared<DataTypeInt8>();
-                    return &action_dag->addColumn(ColumnWithTypeAndName(
-                        type->createColumnConst(1, literal.i8()), type, getUniqueName(std::to_string(literal.i8()))));
+                    return &action_dag->addColumn(
+                        ColumnWithTypeAndName(type->createColumnConst(1, literal.i8()), type, getUniqueName(std::to_string(literal.i8()))));
                 }
                 case substrait::Expression_Literal::kDate: {
                     auto type = std::make_shared<DataTypeDate>();
                     return &action_dag->addColumn(ColumnWithTypeAndName(
                         type->createColumnConst(1, literal.date()), type, getUniqueName(std::to_string(literal.date()))));
                 }
+                case substrait::Expression_Literal::kList: {
+                    SizeLimits limit;
+                    if (literal.has_empty_list())
+                        throw std::runtime_error("empty list not support!");
+                    MutableColumnPtr values;
+                    DataTypePtr type;
+                    auto first_value = literal.list().values(0);
+                    if (first_value.has_boolean())
+                    {
+                        type = std::make_shared<DataTypeUInt8>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).boolean() ? 1 : 0);
+                        }
+                    }
+                    else if (first_value.has_i8())
+                    {
+                        type = std::make_shared<DataTypeInt8>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).i8());
+                        }
+                    }
+                    else if (first_value.has_i16())
+                    {
+                        type = std::make_shared<DataTypeInt16>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).i16());
+                        }
+                    }
+                    else if (first_value.has_i32())
+                    {
+                        type = std::make_shared<DataTypeInt32>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).i32());
+                        }
+                    }
+                    else if (first_value.has_i64())
+                    {
+                        type = std::make_shared<DataTypeInt64>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).i64());
+                        }
+                    }
+                    else if (first_value.has_fp32())
+                    {
+                        type = std::make_shared<DataTypeFloat32>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).fp32());
+                        }
+                    }
+                    else if (first_value.has_fp64())
+                    {
+                        type = std::make_shared<DataTypeFloat64>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).fp64());
+                        }
+                    }
+                    else if (first_value.has_date())
+                    {
+                        type = std::make_shared<DataTypeDate>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).date());
+                        }
+                    }
+                    else if (first_value.has_string())
+                    {
+                        type = std::make_shared<DataTypeString>();
+                        values = type->createColumn();
+                        for (int i = 0; i < literal.list().values_size(); ++i)
+                        {
+                            values->insert(literal.list().values(i).string());
+                        }
+                    }
+                    else
+                    {
+                        LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported literal list type");
+                        throw std::runtime_error("unsupported literal list type.");
+                    }
+                    auto set = std::make_shared<Set>(limit, true, false);
+                    Block values_block;
+                    auto name = getUniqueName("__set");
+                    values_block.insert(ColumnWithTypeAndName(std::move(values), type, name));
+                    set->setHeader(values_block.getColumnsWithTypeAndName());
+                    set->insertFromBlock(values_block.getColumnsWithTypeAndName());
+                    set->finishInsert();
+
+                    auto arg = ColumnSet::create(set->getTotalRowCount(), set);
+                    return &action_dag->addColumn(ColumnWithTypeAndName(std::move(arg), std::make_shared<DataTypeSet>(), name));
+                }
                 default:
-                    throw std::runtime_error("unsupported constant type " + std::to_string(literal.literal_type_case()));
+                {
+                    LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported constant type {}", magic_enum::enum_name(literal.literal_type_case()));
+                    throw std::runtime_error("unsupported constant type");
+                }
             }
         }
         case substrait::Expression::RexTypeCase::kSelection: {
             if (!rel.selection().has_direct_reference() || !rel.selection().direct_reference().has_struct_field())
             {
+                LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "Can only have direct struct references in selections");
                 throw std::runtime_error("Can only have direct struct references in selections");
             }
             const auto * field = action_dag->getInputs()[rel.selection().direct_reference().struct_field().field()];
@@ -623,6 +769,7 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
         case substrait::Expression::RexTypeCase::kCast: {
             if (!rel.cast().has_type() || !rel.cast().has_input())
             {
+                LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "There is no type and input in cast node.");
                 throw std::runtime_error("There is no type and input in cast node.");
             }
             std::string ch_function_name;
@@ -630,9 +777,33 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
             {
                 ch_function_name = "toFloat64";
             }
+            else if (rel.cast().type().has_fp32())
+            {
+                ch_function_name = "toFloat32";
+            }
             else if (rel.cast().type().has_string())
             {
                 ch_function_name = "toString";
+            }
+            else if (rel.cast().type().has_i64())
+            {
+                ch_function_name = "toInt64";
+            }
+            else if (rel.cast().type().has_i32())
+            {
+                ch_function_name = "toInt32";
+            }
+            else if (rel.cast().type().has_i16())
+            {
+                ch_function_name = "toInt16";
+            }
+            else if (rel.cast().type().has_i8())
+            {
+                ch_function_name = "toInt8";
+            }
+            else if (rel.cast().type().has_date())
+            {
+                ch_function_name = "toDate";
             }
             else
             {
@@ -641,6 +812,10 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
             }
             DB::ActionsDAG::NodeRawConstPtrs args;
             if (rel.cast().input().has_selection())
+            {
+                args.emplace_back(parseArgument(action_dag, rel.cast().input()));
+            }
+            else if (rel.cast().input().has_if_then())
             {
                 args.emplace_back(parseArgument(action_dag, rel.cast().input()));
             }
@@ -660,8 +835,44 @@ const ActionsDAG::Node * SerializedPlanParser::parseArgument(ActionsDAGPtr actio
             action_dag->addOrReplaceInIndex(*function_node);
             return function_node;
         }
+        case substrait::Expression::RexTypeCase::kIfThen: {
+            const auto & if_then = rel.if_then();
+            auto function_multi_if = DB::FunctionFactory::instance().get("multiIf", this->context);
+            DB::ActionsDAG::NodeRawConstPtrs args;
+
+            auto condition_nums = if_then.ifs_size();
+            for (int i = 0; i < condition_nums; ++i)
+            {
+                const auto & if_ = if_then.ifs(i);
+                std::string if_name;
+                std::string then_name;
+                parseFunctionWithDAG(if_.if_(), if_name, action_dag, false);
+                for (const auto & node : action_dag->getNodes())
+                {
+                    if (node.result_name == if_name)
+                    {
+                        args.emplace_back(&node);
+                        break;
+                    }
+                }
+                const auto * then_node = parseArgument(action_dag, if_.then());
+                args.emplace_back(then_node);
+            }
+
+            const auto * else_node = parseArgument(action_dag, if_then.else_());
+            args.emplace_back(else_node);
+            std::string args_name;
+            join(args, ',', args_name);
+            auto result_name = "multiIf(" + args_name + ")";
+            const auto * function_node = &action_dag->addFunction(function_multi_if, args, result_name);
+            return function_node;
+        }
         default:
-            throw std::runtime_error("unsupported arg type " + std::to_string(rel.rex_type_case()));
+        {
+            LOG_ERROR(&Poco::Logger::get("SerializedPlanParser"), "unsupported arg type {}", magic_enum::enum_name(rel.rex_type_case()));
+            throw std::runtime_error("unsupported arg type");
+
+        }
     }
 }
 
@@ -764,6 +975,7 @@ void SerializedPlanParser::reorderJoinOutput(QueryPlan & plan, DB::Names cols)
     QueryPlanStepPtr project_step = std::make_unique<ExpressionStep>(plan.getCurrentDataStream(), project);
     plan.addStep(std::move(project_step));
 }
+
 
 SharedContextHolder SerializedPlanParser::shared_context;
 

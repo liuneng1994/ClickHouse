@@ -28,12 +28,10 @@ static const std::map<std::string, std::string> SCALAR_FUNCTIONS = {
     {"lt", "less"},
     {"equal", "equals"},
 
-
     {"and", "and"},
     {"or", "or"},
     {"not", "not"},
     {"xor", "xor"},
-
 
     {"TO_DATE", "toDate"},
     {"cast", ""},
@@ -45,9 +43,14 @@ static const std::map<std::string, std::string> SCALAR_FUNCTIONS = {
     {"divide", "divide"},
     {"modulus", "modulo"},
 
-
     {"like", "like"},
     {"not_like", "notLike"},
+    {"starts_with", "startsWith"},
+    {"ends_with", "endsWith"},
+    {"contains", "countSubstrings"},
+
+    {"in", "in"},
+
     // aggregate functions
     {"count", "count"},
     {"avg", "avg"},
@@ -67,7 +70,7 @@ struct QueryContext {
 class SerializedPlanParser
 {
 public:
-    SerializedPlanParser(const ContextPtr & context);
+    explicit SerializedPlanParser(const ContextPtr & context);
     static void initFunctionEnv();
     DB::QueryPlanPtr parse(std::string& plan);
     DB::QueryPlanPtr parse(std::unique_ptr<substrait::Plan> plan);
@@ -101,6 +104,7 @@ private:
     void reorderJoinOutput(DB::QueryPlan & plan, DB::Names cols);
     std::string getFunctionName(std::string function_sig, const substrait::Type& output_type);
     DB::ActionsDAGPtr parseFunction(const DataStream & input, const substrait::Expression &rel, std::string & result_name, DB::ActionsDAGPtr actions_dag = nullptr, bool keep_result = false);
+    DB::ActionsDAGPtr parseFunctionWithDAG(const substrait::Expression &rel, std::string & result_name, DB::ActionsDAGPtr actions_dag = nullptr, bool keep_result = false);
     DB::QueryPlanStepPtr parseAggregate(DB::QueryPlan & plan, const substrait::AggregateRel &rel);
     const DB::ActionsDAG::Node * parseArgument(DB::ActionsDAGPtr action_dag, const substrait::Expression &rel);
     std::string getUniqueName(std::string name)

@@ -1,4 +1,5 @@
 #include "ShuffleReader.h"
+#include <Common/DebugUtils.h>
 #include <Shuffle/ShuffleSplitter.h>
 #include <Common/Exception.h>
 
