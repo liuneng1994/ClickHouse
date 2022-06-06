@@ -278,7 +278,19 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     ColumnsWithTypeAndName args;
     for (auto &name : options.exprs)
     {
-        args.emplace_back(block.getByName(name));
+        auto name_without_id = name.substr(0, name.find('#'));
+        if (block.has(name))
+        {
+            args.emplace_back(block.getByName(name));
+        }
+        else if (block.has(name_without_id))
+        {
+            args.emplace_back(block.getByName(name_without_id));
+        }
+        else
+        {
+            throw std::runtime_error("can't find has column " + name);
+        }
     }
     if (!hash_function)
     {
