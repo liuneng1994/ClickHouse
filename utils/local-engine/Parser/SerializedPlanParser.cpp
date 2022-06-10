@@ -1,6 +1,7 @@
 #include "SerializedPlanParser.h"
 #include <AggregateFunctions/AggregateFunctionFactory.h>
 #include <AggregateFunctions/registerAggregateFunctions.h>
+#include <Builder/BroadCastJoinBuilder.h>
 #include <Columns/ColumnSet.h>
 #include <Core/Block.h>
 #include <Core/Names.h>
@@ -33,8 +34,10 @@
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <Storages/StorageMergeTreeFactory.h>
 #include <Poco/Util/MapConfiguration.h>
-#include <Common/MergeTreeTool.h>
 #include <Common/DebugUtils.h>
+#include <Common/JoinHelper.h>
+#include <Common/MergeTreeTool.h>
+
 
 #include <base/logger_useful.h>
 using namespace DB;
@@ -521,11 +524,9 @@ void join(ActionsDAG::NodeRawConstPtrs v, char c, std::string & s)
     }
 }
 
-std::string SerializedPlanParser::getFunctionName(
-    std::string function_signature,
-    const substrait::Expression_ScalarFunction & function)
+std::string SerializedPlanParser::getFunctionName(std::string function_signature, const substrait::Expression_ScalarFunction & function)
 {
-    const auto& output_type = function.output_type();
+    const auto & output_type = function.output_type();
     auto args = function.args();
     auto function_name_idx = function_signature.find(':');
     //    assert(function_name_idx != function_signature.npos && ("invalid function signature: " + function_signature).c_str());
@@ -1049,6 +1050,7 @@ ContextMutablePtr SerializedPlanParser::global_context = nullptr;
 Context::ConfigurationPtr SerializedPlanParser::config = Poco::AutoPtr(new Poco::Util::MapConfiguration());
 DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::QueryPlanPtr left, DB::QueryPlanPtr right)
 {
+    auto join_opt_info = parseJoinOptimizationInfo(join.advanced_extension().optimization().value());
     auto table_join = std::make_shared<TableJoin>(global_context->getSettings(), global_context->getTemporaryVolume());
     if (join.type() == substrait::JoinRel_JoinType_JOIN_TYPE_INNER)
     {
@@ -1112,24 +1114,42 @@ DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::Qu
         converting_step->setStepDescription("Convert joined columns");
         left->addStep(std::move(converting_step));
     }
-    auto hash_join = std::make_shared<HashJoin>(table_join, right->getCurrentDataStream().header.cloneEmpty());
-    QueryPlanStepPtr join_step
-        = std::make_unique<DB::JoinStep>(left->getCurrentDataStream(), right->getCurrentDataStream(), hash_join, 8192);
-
-    join_step->setStepDescription("JOIN");
-
+    QueryPlanPtr query_plan;
     Names after_join_names;
     auto left_names = left->getCurrentDataStream().header.getNames();
     after_join_names.insert(after_join_names.end(), left_names.begin(), left_names.end());
     auto right_name = right->getCurrentDataStream().header.getNames();
     after_join_names.insert(after_join_names.end(), right_name.begin(), right_name.end());
 
-    std::vector<QueryPlanPtr> plans;
-    plans.emplace_back(std::move(left));
-    plans.emplace_back(std::move(right));
+    if (join_opt_info.is_broadcast)
+    {
+        auto storage_join = BroadCastJoinBuilder::getJoin(join_opt_info.storage_join_key);
+        auto hash_join = storage_join->getJoinLocked(table_join, context);
+        QueryPlanStepPtr join_step = std::make_unique<FilledJoinStep>(
+            left->getCurrentDataStream(),
+            hash_join,
+            8192);
 
-    auto query_plan = std::make_unique<QueryPlan>();
-    query_plan->unitePlans(std::move(join_step), {std::move(plans)});
+        join_step->setStepDescription("JOIN");
+        left->addStep(std::move(join_step));
+        query_plan = std::move(left);
+    }
+    else
+    {
+        auto hash_join = std::make_shared<HashJoin>(table_join, right->getCurrentDataStream().header.cloneEmpty());
+        QueryPlanStepPtr join_step
+            = std::make_unique<DB::JoinStep>(left->getCurrentDataStream(), right->getCurrentDataStream(), hash_join, 8192);
+
+        join_step->setStepDescription("JOIN");
+
+        std::vector<QueryPlanPtr> plans;
+        plans.emplace_back(std::move(left));
+        plans.emplace_back(std::move(right));
+
+        query_plan = std::make_unique<QueryPlan>();
+        query_plan->unitePlans(std::move(join_step), {std::move(plans)});
+    }
+
     reorderJoinOutput(*query_plan, after_join_names);
     if (join.has_post_join_filter())
     {
