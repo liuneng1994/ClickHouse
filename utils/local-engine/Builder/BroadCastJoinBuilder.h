@@ -15,6 +15,13 @@ public:
         DB::ASTTableJoin::Strictness strictness_,
         const DB::ColumnsDescription & columns_);
 
+    static void buildJoinIfNotExist(
+        const std::string & key,
+        std::unique_ptr<ReadBufferFromJavaInputStream> read_buffer,
+        const std::string & join_keys,
+        const std::string & join_type,
+        const std::string & named_struct);
+
     static std::shared_ptr<StorageJoinFromReadBuffer> getJoin(const std::string & key);
 
 private:

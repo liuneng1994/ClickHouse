@@ -1124,6 +1124,10 @@ DB::QueryPlanPtr SerializedPlanParser::parseJoin(substrait::JoinRel join, DB::Qu
     if (join_opt_info.is_broadcast)
     {
         auto storage_join = BroadCastJoinBuilder::getJoin(join_opt_info.storage_join_key);
+        if (!storage_join)
+        {
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "broad cast table {} not found.", join_opt_info.storage_join_key);
+        }
         auto hash_join = storage_join->getJoinLocked(table_join, context);
         QueryPlanStepPtr join_step = std::make_unique<FilledJoinStep>(
             left->getCurrentDataStream(),

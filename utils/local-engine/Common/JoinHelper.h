@@ -11,7 +11,7 @@ struct JoinOptimizationInfo
 };
 
 
-static JoinOptimizationInfo parseJoinOptimizationInfo(std::string optimization);
+JoinOptimizationInfo parseJoinOptimizationInfo(std::string optimization);
 
 
 }

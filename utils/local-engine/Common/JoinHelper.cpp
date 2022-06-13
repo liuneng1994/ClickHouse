@@ -15,12 +15,15 @@ JoinOptimizationInfo parseJoinOptimizationInfo(std::string optimization)
     assertString("isBHJ=", in);
     readBoolText(info.is_broadcast, in);
     assertChar('\n', in);
-    assertString("isNullAwareAntiJoin==", in);
-    readBoolText(info.is_null_aware_anti_join, in);
-    assertChar('\n', in);
-    assertString("buildHashTableId=", in);
-    readString(info.storage_join_key, in);
-    assertChar('\n', in);
+    if (info.is_broadcast)
+    {
+        assertString("isNullAwareAntiJoin=", in);
+        readBoolText(info.is_null_aware_anti_join, in);
+        assertChar('\n', in);
+        assertString("buildHashTableId=", in);
+        readString(info.storage_join_key, in);
+        assertChar('\n', in);
+    }
     return info;
 }
 }
