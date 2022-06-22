@@ -40,7 +40,7 @@ add_library(${LOCALENGINE_SHARED_LIB} SHARED
         )
 
 
-target_compile_options(${LOCALENGINE_SHARED_LIB} PUBLIC -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. -fPIC)
+target_compile_options(${LOCALENGINE_SHARED_LIB} PUBLIC -fPIC)
 
 target_link_libraries(${LOCALENGINE_SHARED_LIB} PUBLIC
         clickhouse_aggregate_functions
