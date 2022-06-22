@@ -58,7 +58,7 @@ int ReadBufferFromJavaInputStream::readFromJava()
     assert(ShuffleReader::env != nullptr);
     if (buf == nullptr)
     {
-        buf = static_cast<jbyteArray>(ShuffleReader::env->NewGlobalRef(ShuffleReader::env->NewByteArray(8192)));
+        buf = static_cast<jbyteArray>(ShuffleReader::env->NewGlobalRef(ShuffleReader::env->NewByteArray(4096)));
     }
     jint count = ShuffleReader::env->CallIntMethod(java_in, ShuffleReader::input_stream_read, buf);
     if (count > 0)
