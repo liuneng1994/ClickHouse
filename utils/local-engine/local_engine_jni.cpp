@@ -476,13 +476,13 @@ jlong Java_io_glutenproject_vectorized_CHNativeBlock_nativeTotalBytes(JNIEnv * e
     return block->bytes();
 }
 
-jlong Java_io_glutenproject_vectorized_CHStreamReader_createNativeShuffleReader(JNIEnv * env, jclass clazz, jobject input_stream)
+jlong Java_io_glutenproject_vectorized_CHStreamReader_createNativeShuffleReader(JNIEnv * env, jclass clazz, jobject input_stream, jboolean compressed)
 {
     try
     {
         auto input = env->NewGlobalRef(input_stream);
         auto read_buffer = std::make_unique<local_engine::ReadBufferFromJavaInputStream>(input);
-        auto * shuffle_reader = new local_engine::ShuffleReader(std::move(read_buffer), false);
+        auto * shuffle_reader = new local_engine::ShuffleReader(std::move(read_buffer), compressed);
         return reinterpret_cast<jlong>(shuffle_reader);
     }
     catch (DB::Exception & e)
