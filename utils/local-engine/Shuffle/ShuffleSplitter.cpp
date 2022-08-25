@@ -70,7 +70,7 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
         {
             buffer.add(partitions[i], 0, first_cache_count);
         }
-        if (buffer.size() == options.buffer_size)
+        if (unlikely(buffer.size() == options.buffer_size))
         {
             spillPartition(i);
         }
@@ -289,7 +289,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     if (!hash_function)
     {
         auto & factory = DB::FunctionFactory::instance();
-        auto function = factory.get("murmurHash3_32", local_engine::SerializedPlanParser::global_context);
+        auto function = factory.get("CRC32", local_engine::SerializedPlanParser::global_context);
 
         hash_function = function->build(args);
     }
