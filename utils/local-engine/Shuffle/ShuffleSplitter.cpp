@@ -60,7 +60,7 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 //        split_result.raw_partition_length[i] += partitions[i].bytes();
         ColumnsBuffer & buffer = partition_buffer[selector[i]];
         buffer.add(block, i, i+1);
-        if (unlikely(buffer.size() == options.buffer_size))
+        if (buffer.size() == options.buffer_size)
         {
             spillPartition(selector[i]);
         }
@@ -213,7 +213,7 @@ void ColumnsBuffer::add(DB::Block & block, int start, int end)
     assert(!accumulated_columns.empty());
     for (size_t i = 0; i < block.columns(); ++i)
     {
-        if (likely((end - start) == 1))
+        if ((end - start) == 1)
         {
             accumulated_columns[i]->insertFrom(*block.getByPosition(i).column, start);
         }
