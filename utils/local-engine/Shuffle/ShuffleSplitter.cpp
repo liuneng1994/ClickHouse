@@ -45,34 +45,24 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 {
     DB::IColumn::Selector selector;
     buildSelector(block.rows(), selector);
-    std::vector<DB::Block> partitions;
-    for (size_t i = 0; i < options.partition_nums; ++i)
-        partitions.emplace_back(block.cloneEmpty());
-    for (size_t col = 0; col < block.columns(); ++col)
-    {
-        DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
-        for (size_t i = 0; i < options.partition_nums; ++i)
-            partitions[i].getByPosition(col).column = std::move(scattered[i]);
-    }
+//    std::vector<DB::Block> partitions;
+//    for (size_t i = 0; i < options.partition_nums; ++i)
+//        partitions.emplace_back(block.cloneEmpty());
+//    for (size_t col = 0; col < block.columns(); ++col)
+//    {
+//        DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
+//        for (size_t i = 0; i < options.partition_nums; ++i)
+//            partitions[i].getByPosition(col).column = std::move(scattered[i]);
+//    }
 
-    for (size_t i = 0; i < options.partition_nums; ++i)
+    for (size_t i = 0; i < selector.size(); ++i)
     {
-        split_result.raw_partition_length[i] += partitions[i].bytes();
-        ColumnsBuffer & buffer = partition_buffer[i];
-        size_t first_cache_count = std::min(partitions[i].rows(), options.buffer_size - buffer.size());
-        if (first_cache_count < partitions[i].rows())
-        {
-            buffer.add(partitions[i], 0, first_cache_count);
-            spillPartition(i);
-            buffer.add(partitions[i], first_cache_count, partitions[i].rows());
-        }
-        else
-        {
-            buffer.add(partitions[i], 0, first_cache_count);
-        }
+//        split_result.raw_partition_length[i] += partitions[i].bytes();
+        ColumnsBuffer & buffer = partition_buffer[selector[i]];
+        buffer.add(block, i, i+1);
         if (unlikely(buffer.size() == options.buffer_size))
         {
-            spillPartition(i);
+            spillPartition(selector[i]);
         }
     }
 }
@@ -222,7 +212,17 @@ void ColumnsBuffer::add(DB::Block & block, int start, int end)
     }
     assert(!accumulated_columns.empty());
     for (size_t i = 0; i < block.columns(); ++i)
-        accumulated_columns[i]->insertRangeFrom(*block.getByPosition(i).column, start, end - start);
+    {
+        if (likely((end - start) == 1))
+        {
+            accumulated_columns[i]->insertFrom(*block.getByPosition(i).column, start);
+        }
+        else
+        {
+            accumulated_columns[i]->insertRangeFrom(*block.getByPosition(i).column, start, end - start);
+        }
+
+    }
 }
 
 size_t ColumnsBuffer::size() const
