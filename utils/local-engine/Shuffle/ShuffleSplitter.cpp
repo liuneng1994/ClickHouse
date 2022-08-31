@@ -210,7 +210,6 @@ void ColumnsBuffer::add(DB::Block & block, int start, int end)
             accumulated_columns.emplace_back(std::move(column));
         }
     }
-    assert(!accumulated_columns.empty());
     for (size_t i = 0; i < block.columns(); ++i)
     {
         if ((end - start) == 1)
@@ -277,6 +276,11 @@ std::unique_ptr<ShuffleSplitter> HashSplitter::create(SplitOptions && options_)
     return std::make_unique<HashSplitter>(std::move(options_));
 }
 
+static inline uint32_t fastRange32(uint32_t word, uint32_t p) {
+    return static_cast<uint32_t>((static_cast<uint64_t>(word) * static_cast<uint64_t>(p)) >> 32);
+}
+
+
 void HashSplitter::computeAndCountPartitionId(DB::Block & block)
 {
     Stopwatch watch;
@@ -298,7 +302,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     partition_ids.clear();
     for (size_t i = 0; i < block.rows(); i++)
     {
-        partition_ids.emplace_back(static_cast<UInt64>(hash_column->get64(i)  % options.partition_nums));
+        partition_ids.emplace_back(fastRange32(hash_column->get64(i), options.partition_nums));
     }
     split_result.total_compute_pid_time += watch.elapsedNanoseconds();
 }

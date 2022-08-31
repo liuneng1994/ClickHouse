@@ -163,3 +163,15 @@ TEST(TestFunction, not__in)
     debug::headColumn(result2);
     ASSERT_EQ(result2->getUInt(3), 1);
 }
+
+static inline uint32_t fastrange32(uint32_t word, uint32_t p) {
+    return (uint32_t)(((uint64_t)word * (uint64_t)p) >> 32);
+}
+
+TEST(TestMath, TestModulo)
+{
+    ASSERT_EQ(345634568 % 64, fastrange32(345634568, 64));
+    ASSERT_EQ(3265 % 120, fastrange32(3265, 120));
+    ASSERT_EQ(7893 % 40, fastrange32(7893, 40));
+    ASSERT_EQ(6548 % 33, fastrange32(6548, 33));
+}
