@@ -16,8 +16,8 @@
 #include <Poco/StringTokenizer.h>
 #include <Common/ExceptionUtils.h>
 #include <Common/JNIUtils.h>
-#include <Builder/BroadCastJoinBuilder.h>
-#include <base/logger_useful.h>
+#include <Common/CurrentThread.h>
+#include <Common/QueryContext.h>
 #include <Poco/Logger.h>
 #include <jni/jni_common.h>
 #include <jni/jni_error.h>
@@ -193,8 +193,7 @@ jlong Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreat
     JNIEnv * env, jobject /*obj*/, jlong, jbyteArray plan, jobjectArray iter_arr)
 {
     LOCAL_ENGINE_JNI_METHOD_START
-    auto context = Coordination::Context::createCopy(local_engine::SerializedPlanParser::global_context);
-
+    auto context = local_engine::initializeQuery();
     local_engine::SerializedPlanParser parser(context);
     jsize iter_num = env->GetArrayLength(iter_arr);
     for (jsize i = 0; i < iter_num; i++)
@@ -276,6 +275,7 @@ void Java_io_glutenproject_vectorized_BatchIterator_nativeClose(JNIEnv * env, jo
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
+    local_engine::shutdownQuery();
     delete executor;
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }

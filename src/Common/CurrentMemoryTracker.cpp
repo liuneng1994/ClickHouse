@@ -27,6 +27,9 @@ namespace CurrentMemoryTracker
 {
 
 using DB::current_thread;
+thread_local std::function<void(Int64)> before_alloc = nullptr;
+
+thread_local std::function<void(Int64)> before_free  = nullptr;
 
 namespace
 {
@@ -44,12 +47,16 @@ namespace
                     /// more. It could be useful to enlarge Exception message in rethrow logic.
                     Int64 tmp = current_thread->untracked_memory;
                     current_thread->untracked_memory = 0;
+                    if (before_alloc)
+                        before_alloc(size);
                     memory_tracker->allocImpl(tmp, throw_if_memory_exceeded);
                 }
             }
             /// total_memory_tracker only, ignore untracked_memory
             else
             {
+                if (before_alloc)
+                    before_alloc(size);
                 memory_tracker->allocImpl(size, throw_if_memory_exceeded);
             }
         }
@@ -89,6 +96,8 @@ void free(Int64 size)
             current_thread->untracked_memory -= size;
             if (current_thread->untracked_memory < -current_thread->untracked_memory_limit)
             {
+                if (before_free)
+                    before_free(size);
                 memory_tracker->free(-current_thread->untracked_memory);
                 current_thread->untracked_memory = 0;
             }
@@ -96,6 +105,8 @@ void free(Int64 size)
         /// total_memory_tracker only, ignore untracked_memory
         else
         {
+            if (before_free)
+                before_free(size);
             memory_tracker->free(size);
         }
     }
