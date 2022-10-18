@@ -25,11 +25,11 @@ int64_t initializeQuery(ReservationListenerWrapperPtr listener)
     auto query_context = Context::createCopy(SerializedPlanParser::global_context);
     query_context->makeQueryContext();
     auto allocator_context= std::make_shared<NativeAllocatorContext>();
-    allocator_context->query_scope = std::make_shared<CurrentThread::QueryScope>(query_context);
     allocator_context->thread_status = std::make_shared<ThreadStatus>();
+    allocator_context->query_scope = std::make_shared<CurrentThread::QueryScope>(query_context);
     allocator_context->query_context = query_context;
-    query_scope = std::weak_ptr<CurrentThread::QueryScope>(allocator_context->query_scope);
     thread_status = std::weak_ptr<ThreadStatus>(allocator_context->thread_status);
+    query_scope = std::weak_ptr<CurrentThread::QueryScope>(allocator_context->query_scope);
     auto allocator_id = reinterpret_cast<int64_t>(allocator_context.get());
     allocator_map.emplace(allocator_id, allocator_context);
     CurrentMemoryTracker::before_alloc = [listener](Int64 size) -> void { listener->reserve(size); };

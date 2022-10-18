@@ -40,7 +40,6 @@ namespace
             if (current_thread)
             {
                 current_thread->untracked_memory += size;
-
                 if (current_thread->untracked_memory > current_thread->untracked_memory_limit)
                 {
                     /// Zero untracked before track. If tracker throws out-of-limit we would be able to alloc up to untracked_memory_limit bytes
@@ -48,15 +47,15 @@ namespace
                     Int64 tmp = current_thread->untracked_memory;
                     current_thread->untracked_memory = 0;
                     if (before_alloc)
-                        before_alloc(size);
+                        before_alloc(tmp);
                     memory_tracker->allocImpl(tmp, throw_if_memory_exceeded);
                 }
             }
             /// total_memory_tracker only, ignore untracked_memory
             else
             {
-                if (before_alloc)
-                    before_alloc(size);
+//                if (before_alloc)
+//                    before_alloc(size);
                 memory_tracker->allocImpl(size, throw_if_memory_exceeded);
             }
         }
@@ -97,7 +96,7 @@ void free(Int64 size)
             if (current_thread->untracked_memory < -current_thread->untracked_memory_limit)
             {
                 if (before_free)
-                    before_free(size);
+                    before_free(-current_thread->untracked_memory);
                 memory_tracker->free(-current_thread->untracked_memory);
                 current_thread->untracked_memory = 0;
             }
@@ -105,8 +104,8 @@ void free(Int64 size)
         /// total_memory_tracker only, ignore untracked_memory
         else
         {
-            if (before_free)
-                before_free(size);
+//            if (before_free)
+//                before_free(size);
             memory_tracker->free(size);
         }
     }
