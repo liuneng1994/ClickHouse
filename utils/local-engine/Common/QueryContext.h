@@ -18,9 +18,10 @@ struct NativeAllocatorContext
     std::shared_ptr<DB::CurrentThread::QueryScope> query_scope;
     std::shared_ptr<DB::ThreadStatus> thread_status;
     DB::ContextPtr query_context;
+    ReservationListenerWrapperPtr listener;
 };
 
 using NativeAllocatorContextPtr = std::shared_ptr<NativeAllocatorContext>;
 
-const std::unordered_map<int64_t, NativeAllocatorContextPtr> getAllocatorContextMap();
+NativeAllocatorContextPtr getAllocator(int64_t allocator);
 }

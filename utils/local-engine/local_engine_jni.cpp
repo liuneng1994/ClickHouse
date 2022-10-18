@@ -202,7 +202,7 @@ jlong Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreat
     JNIEnv * env, jobject /*obj*/, jlong allocator_id, jbyteArray plan, jobjectArray iter_arr)
 {
     LOCAL_ENGINE_JNI_METHOD_START
-    auto query_context = local_engine::getAllocatorContextMap().at(allocator_id)->query_context;
+    auto query_context = local_engine::getAllocator(allocator_id)->query_context;
     local_engine::SerializedPlanParser parser(query_context);
     jsize iter_num = env->GetArrayLength(iter_arr);
     for (jsize i = 0; i < iter_num; i++)
@@ -1007,6 +1007,7 @@ jlong Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_createListenableA
 
 void Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_releaseAllocator(JNIEnv* env, jclass, jlong allocator_id)
 {
+    std::cout << "release allocator" << std::endl;
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::releaseAllocator(allocator_id);
     LOCAL_ENGINE_JNI_METHOD_END(env,)
