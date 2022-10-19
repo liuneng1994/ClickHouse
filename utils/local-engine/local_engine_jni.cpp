@@ -853,7 +853,6 @@ void Java_io_glutenproject_vectorized_StorageJoinBuilder_nativeBuild(
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * input = env->NewGlobalRef(in);
-    auto read_buffer = std::make_unique<local_engine::ReadBufferFromJavaInputStream>(input);
     auto hash_table_id = jstring2string(env, hash_table_id_);
     auto join_key = jstring2string(env, join_key_);
     auto join_type = jstring2string(env, join_type_);
@@ -861,7 +860,7 @@ void Java_io_glutenproject_vectorized_StorageJoinBuilder_nativeBuild(
     jbyte * struct_address = env->GetByteArrayElements(named_struct, nullptr);
     std::string struct_string;
     struct_string.assign(reinterpret_cast<const char *>(struct_address), struct_size);
-    local_engine::BroadCastJoinBuilder::buildJoinIfNotExist(hash_table_id, std::move(read_buffer), join_key, join_type, struct_string);
+    local_engine::BroadCastJoinBuilder::buildJoinIfNotExist(hash_table_id, input, join_key, join_type, struct_string);
     env->ReleaseByteArrayElements(named_struct, struct_address, JNI_ABORT);
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
@@ -1007,7 +1006,6 @@ jlong Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_createListenableA
 
 void Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_releaseAllocator(JNIEnv* env, jclass, jlong allocator_id)
 {
-    std::cout << "release allocator" << std::endl;
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::releaseAllocator(allocator_id);
     LOCAL_ENGINE_JNI_METHOD_END(env,)
