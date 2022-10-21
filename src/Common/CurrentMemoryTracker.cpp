@@ -54,8 +54,6 @@ namespace
             /// total_memory_tracker only, ignore untracked_memory
             else
             {
-//                if (before_alloc)
-//                    before_alloc(size);
                 memory_tracker->allocImpl(size, throw_if_memory_exceeded);
             }
         }
@@ -104,8 +102,6 @@ void free(Int64 size)
         /// total_memory_tracker only, ignore untracked_memory
         else
         {
-//            if (before_free)
-//                before_free(size);
             memory_tracker->free(size);
         }
     }
