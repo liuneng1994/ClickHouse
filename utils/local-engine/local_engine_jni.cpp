@@ -175,7 +175,7 @@ void JNI_OnUnload(JavaVM * vm, void * /*reserved*/)
     local_engine::BroadCastJoinBuilder::clean();
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeInitNative(JNIEnv * env, jobject, jbyteArray plan)
+void Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeInitNative(JNIEnv * env, jobject, jbyteArray plan)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     jsize plan_buf_size = env->GetArrayLength(plan);
@@ -186,7 +186,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWr
     LOCAL_ENGINE_JNI_METHOD_END(env, )
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreateKernelWithRowIterator(
+jlong Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreateKernelWithRowIterator(
     JNIEnv * env, jobject /*obj*/, jbyteArray plan)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -200,7 +200,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniW
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreateKernelWithIterator(
+jlong Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreateKernelWithIterator(
     JNIEnv * env, jobject /*obj*/, jlong allocator_id, jbyteArray plan, jobjectArray iter_arr)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -225,7 +225,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniW
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_row_RowIterator_nativeHasNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+jboolean Java_io_glutenproject_row_RowIterator_nativeHasNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -233,7 +233,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_row_RowIterator_nativeHasNext(J
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jobject JNICALL Java_io_glutenproject_row_RowIterator_nativeNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+jobject Java_io_glutenproject_row_RowIterator_nativeNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -256,7 +256,7 @@ JNIEXPORT jobject JNICALL Java_io_glutenproject_row_RowIterator_nativeNext(JNIEn
     LOCAL_ENGINE_JNI_METHOD_END(env, nullptr)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_row_RowIterator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+void Java_io_glutenproject_row_RowIterator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -265,7 +265,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_row_RowIterator_nativeClose(JNIEnv 
 }
 
 // Columnar Iterator
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_BatchIterator_nativeHasNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+jboolean Java_io_glutenproject_vectorized_BatchIterator_nativeHasNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -273,7 +273,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_BatchIterator_native
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BatchIterator_nativeCHNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+jlong Java_io_glutenproject_vectorized_BatchIterator_nativeCHNext(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -282,7 +282,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BatchIterator_nativeCHN
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BatchIterator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+void Java_io_glutenproject_vectorized_BatchIterator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong executor_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
@@ -290,21 +290,21 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BatchIterator_nativeClos
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetJavaTmpDir(JNIEnv * /*env*/, jobject /*obj*/, jstring /*dir*/)
+void Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetJavaTmpDir(JNIEnv * /*env*/, jobject /*obj*/, jstring /*dir*/)
 {
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetBatchSize(
+void Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetBatchSize(
     JNIEnv * /*env*/, jobject /*obj*/, jint /*batch_size*/)
 {
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetMetricsTime(
+void Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeSetMetricsTime(
     JNIEnv * /*env*/, jobject /*obj*/, jboolean /*setMetricsTime*/)
 {
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeHasNull(JNIEnv * env, jobject obj, jlong block_address, jint column_position)
+jboolean Java_io_glutenproject_vectorized_CHColumnVector_nativeHasNull(JNIEnv * env, jobject obj, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     DB::Block * block = reinterpret_cast<DB::Block *>(block_address);
@@ -322,7 +322,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env,false)
 }
 
-JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeNumNulls(JNIEnv * env, jobject obj, jlong block_address, jint column_position)
+jint Java_io_glutenproject_vectorized_CHColumnVector_nativeNumNulls(JNIEnv * env, jobject obj, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto col = getColumnFromColumnVector(env, obj, block_address, column_position);
@@ -338,7 +338,7 @@ JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeNum
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeIsNullAt(
+jboolean Java_io_glutenproject_vectorized_CHColumnVector_nativeIsNullAt(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -347,7 +347,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetBoolean(
+jboolean Java_io_glutenproject_vectorized_CHColumnVector_nativeGetBoolean(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -361,7 +361,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jbyte JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetByte(
+jbyte Java_io_glutenproject_vectorized_CHColumnVector_nativeGetByte(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -375,7 +375,7 @@ JNIEXPORT jbyte JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGe
     LOCAL_ENGINE_JNI_METHOD_END(env, 0)
 }
 
-JNIEXPORT jshort JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetShort(
+jshort Java_io_glutenproject_vectorized_CHColumnVector_nativeGetShort(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -389,7 +389,7 @@ JNIEXPORT jshort JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeG
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetInt(
+jint Java_io_glutenproject_vectorized_CHColumnVector_nativeGetInt(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -410,7 +410,7 @@ JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGet
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetLong(
+jlong Java_io_glutenproject_vectorized_CHColumnVector_nativeGetLong(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -424,7 +424,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGe
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetFloat(
+jfloat Java_io_glutenproject_vectorized_CHColumnVector_nativeGetFloat(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -438,7 +438,7 @@ JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeG
     LOCAL_ENGINE_JNI_METHOD_END(env, 0.0)
 }
 
-JNIEXPORT jdouble JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetDouble(
+jdouble Java_io_glutenproject_vectorized_CHColumnVector_nativeGetDouble(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -452,7 +452,7 @@ JNIEXPORT jdouble JNICALL Java_io_glutenproject_vectorized_CHColumnVector_native
     LOCAL_ENGINE_JNI_METHOD_END(env, 0.0)
 }
 
-JNIEXPORT jstring JNICALL Java_io_glutenproject_vectorized_CHColumnVector_nativeGetString(
+jstring Java_io_glutenproject_vectorized_CHColumnVector_nativeGetString(
     JNIEnv * env, jobject obj, jint row_id, jlong block_address, jint column_position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -469,11 +469,11 @@ JNIEXPORT jstring JNICALL Java_io_glutenproject_vectorized_CHColumnVector_native
 }
 
 // native block
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeClose(JNIEnv * /*env*/, jobject /*obj*/, jlong /*block_address*/)
+void Java_io_glutenproject_vectorized_CHNativeBlock_nativeClose(JNIEnv * /*env*/, jobject /*obj*/, jlong /*block_address*/)
 {
 }
 
-JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumRows(JNIEnv * env, jobject /*obj*/, jlong block_address)
+jint Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumRows(JNIEnv * env, jobject /*obj*/, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     DB::Block * block = reinterpret_cast<DB::Block *>(block_address);
@@ -481,7 +481,7 @@ JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumR
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumColumns(JNIEnv * env, jobject /*obj*/, jlong block_address)
+jint Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumColumns(JNIEnv * env, jobject /*obj*/, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * block = reinterpret_cast<DB::Block *>(block_address);
@@ -489,7 +489,7 @@ JNIEXPORT jint JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeNumC
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jstring JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeColumnType(JNIEnv * env, jobject /*obj*/, jlong block_address, jint position)
+jstring Java_io_glutenproject_vectorized_CHNativeBlock_nativeColumnType(JNIEnv * env, jobject /*obj*/, jlong block_address, jint position)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * block = reinterpret_cast<DB::Block *>(block_address);
@@ -565,7 +565,7 @@ JNIEXPORT jstring JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeC
     LOCAL_ENGINE_JNI_METHOD_END(env, local_engine::charTojstring(env, ""))
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeTotalBytes(JNIEnv * env, jobject /*obj*/, jlong block_address)
+jlong Java_io_glutenproject_vectorized_CHNativeBlock_nativeTotalBytes(JNIEnv * env, jobject /*obj*/, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * block = reinterpret_cast<DB::Block *>(block_address);
@@ -573,7 +573,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHNativeBlock_nativeTot
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHStreamReader_createNativeShuffleReader(
+jlong Java_io_glutenproject_vectorized_CHStreamReader_createNativeShuffleReader(
     JNIEnv * env, jclass /*clazz*/, jobject input_stream, jboolean compressed)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -584,7 +584,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHStreamReader_createNa
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHStreamReader_nativeNext(JNIEnv * env, jobject /*obj*/, jlong shuffle_reader)
+jlong Java_io_glutenproject_vectorized_CHStreamReader_nativeNext(JNIEnv * env, jobject /*obj*/, jlong shuffle_reader)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleReader * reader = reinterpret_cast<local_engine::ShuffleReader *>(shuffle_reader);
@@ -593,7 +593,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHStreamReader_nativeNe
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHStreamReader_nativeClose(JNIEnv * env, jobject /*obj*/, jlong shuffle_reader)
+void Java_io_glutenproject_vectorized_CHStreamReader_nativeClose(JNIEnv * env, jobject /*obj*/, jlong shuffle_reader)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleReader * reader = reinterpret_cast<local_engine::ShuffleReader *>(shuffle_reader);
@@ -601,7 +601,7 @@ JNIEXPORT JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHStreamReader
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_createNativeOperator(JNIEnv * env, jobject /*obj*/, jint buf_size)
+jlong Java_io_glutenproject_vectorized_CHCoalesceOperator_createNativeOperator(JNIEnv * env, jobject /*obj*/, jint buf_size)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::BlockCoalesceOperator * instance = new local_engine::BlockCoalesceOperator(buf_size);
@@ -609,7 +609,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_crea
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeMergeBlock(
+void Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeMergeBlock(
     JNIEnv * env, jobject /*obj*/, jlong instance_address, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -620,7 +620,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeIsFull(JNIEnv * env, jobject /*obj*/, jlong instance_address)
+jboolean Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeIsFull(JNIEnv * env, jobject /*obj*/, jlong instance_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::BlockCoalesceOperator * instance = reinterpret_cast<local_engine::BlockCoalesceOperator *>(instance_address);
@@ -629,7 +629,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_n
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeRelease(JNIEnv * env, jobject /*obj*/, jlong instance_address)
+jlong Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeRelease(JNIEnv * env, jobject /*obj*/, jlong instance_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::BlockCoalesceOperator * instance = reinterpret_cast<local_engine::BlockCoalesceOperator *>(instance_address);
@@ -641,7 +641,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nati
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong instance_address)
+void Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeClose(JNIEnv * env, jobject /*obj*/, jlong instance_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::BlockCoalesceOperator * instance = reinterpret_cast<local_engine::BlockCoalesceOperator *>(instance_address);
@@ -650,7 +650,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHCoalesceOperator_nativ
 }
 
 // Splitter Jni Wrapper
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_nativeMake(
+jlong Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_nativeMake(
     JNIEnv * env,
     jobject,
     jstring short_name,
@@ -691,7 +691,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWra
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_split(JNIEnv * env, jobject, jlong splitterId, jint, jlong block)
+void Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_split(JNIEnv * env, jobject, jlong splitterId, jint, jlong block)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::SplitterHolder * splitter = reinterpret_cast<local_engine::SplitterHolder *>(splitterId);
@@ -700,7 +700,7 @@ JNIEXPORT JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHShuffleSplit
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jobject JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_stop(JNIEnv * env, jobject, jlong splitterId)
+jobject Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_stop(JNIEnv * env, jobject, jlong splitterId)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::SplitterHolder * splitter = reinterpret_cast<local_engine::SplitterHolder *>(splitterId);
@@ -731,7 +731,7 @@ JNIEXPORT jobject JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniW
     LOCAL_ENGINE_JNI_METHOD_END(env, nullptr)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_close(JNIEnv * env, jobject, jlong splitterId)
+void Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrapper_close(JNIEnv * env, jobject, jlong splitterId)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::SplitterHolder * splitter = reinterpret_cast<local_engine::SplitterHolder *>(splitterId);
@@ -740,7 +740,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_CHShuffleSplitterJniWrap
 }
 
 // BlockNativeConverter
-JNIEXPORT jobject JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_convertColumnarToRow(JNIEnv * env, jobject, jlong block_address)
+jobject Java_io_glutenproject_vectorized_BlockNativeConverter_convertColumnarToRow(JNIEnv * env, jobject, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::CHColumnToSparkRow converter;
@@ -764,7 +764,7 @@ JNIEXPORT jobject JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_
     LOCAL_ENGINE_JNI_METHOD_END(env, nullptr)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_freeMemory(JNIEnv * env, jobject, jlong address, jlong size)
+void Java_io_glutenproject_vectorized_BlockNativeConverter_freeMemory(JNIEnv * env, jobject, jlong address, jlong size)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::CHColumnToSparkRow converter;
@@ -772,7 +772,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_fre
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_convertSparkRowsToCHColumn(
+jlong Java_io_glutenproject_vectorized_BlockNativeConverter_convertSparkRowsToCHColumn(
     JNIEnv * env, jobject, jobject java_iter, jobjectArray names, jobjectArray types, jbooleanArray is_nullables)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -800,7 +800,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_co
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_freeBlock(JNIEnv *  env, jobject, jlong block_address)
+void Java_io_glutenproject_vectorized_BlockNativeConverter_freeBlock(JNIEnv *  env, jobject, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::SparkRowToCHColumn converter;
@@ -808,7 +808,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeConverter_fre
     LOCAL_ENGINE_JNI_METHOD_END(env, )
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativeCreateInstance(JNIEnv * env, jobject)
+jlong Java_io_glutenproject_vectorized_BlockNativeWriter_nativeCreateInstance(JNIEnv * env, jobject)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * writer = new local_engine::NativeWriterInMemory();
@@ -816,7 +816,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativeWrite(JNIEnv * env, jobject, jlong instance, jlong block_address)
+void Java_io_glutenproject_vectorized_BlockNativeWriter_nativeWrite(JNIEnv * env, jobject, jlong instance, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * writer = reinterpret_cast<local_engine::NativeWriterInMemory *>(instance);
@@ -825,7 +825,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativeResultSize(JNIEnv * env, jobject, jlong instance)
+jint Java_io_glutenproject_vectorized_BlockNativeWriter_nativeResultSize(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * writer = reinterpret_cast<local_engine::NativeWriterInMemory *>(instance);
@@ -833,7 +833,7 @@ JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nati
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativeCollect(JNIEnv * env, jobject, jlong instance, jbyteArray result)
+void Java_io_glutenproject_vectorized_BlockNativeWriter_nativeCollect(JNIEnv * env, jobject, jlong instance, jbyteArray result)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * writer = reinterpret_cast<local_engine::NativeWriterInMemory *>(instance);
@@ -842,7 +842,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_nativeClose(JNIEnv * env, jobject, jlong instance)
+void Java_io_glutenproject_vectorized_BlockNativeWriter_nativeClose(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto * writer = reinterpret_cast<local_engine::NativeWriterInMemory *>(instance);
@@ -850,7 +850,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockNativeWriter_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_StorageJoinBuilder_nativeBuild(
+void Java_io_glutenproject_vectorized_StorageJoinBuilder_nativeBuild(
     JNIEnv * env, jobject, jstring hash_table_id_, jobject in, jstring join_key_, jstring join_type_, jbyteArray named_struct)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -868,7 +868,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_StorageJoinBuilder_nativ
 }
 
 // BlockSplitIterator
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativeCreate(
+jlong Java_io_glutenproject_vectorized_BlockSplitIterator_nativeCreate(
     JNIEnv * env, jobject, jobject in, jstring name, jstring expr, jint partition_num, jint buffer_size)
 {
     LOCAL_ENGINE_JNI_METHOD_START
@@ -884,7 +884,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nati
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativeClose(JNIEnv * env, jobject, jlong instance)
+void Java_io_glutenproject_vectorized_BlockSplitIterator_nativeClose(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::NativeSplitter::Holder * splitter = reinterpret_cast<local_engine::NativeSplitter::Holder *>(instance);
@@ -892,7 +892,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativeHasNext(JNIEnv * env, jobject, jlong instance)
+jboolean Java_io_glutenproject_vectorized_BlockSplitIterator_nativeHasNext(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::NativeSplitter::Holder * splitter = reinterpret_cast<local_engine::NativeSplitter::Holder *>(instance);
@@ -900,7 +900,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_n
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativeNext(JNIEnv * env, jobject, jlong instance)
+jlong Java_io_glutenproject_vectorized_BlockSplitIterator_nativeNext(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::NativeSplitter::Holder * splitter = reinterpret_cast<local_engine::NativeSplitter::Holder *>(instance);
@@ -908,7 +908,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nati
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nativeNextPartitionId(JNIEnv * env, jobject, jlong instance)
+jint Java_io_glutenproject_vectorized_BlockSplitIterator_nativeNextPartitionId(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::NativeSplitter::Holder * splitter = reinterpret_cast<local_engine::NativeSplitter::Holder *>(instance);
@@ -916,7 +916,7 @@ JNIEXPORT jfloat JNICALL Java_io_glutenproject_vectorized_BlockSplitIterator_nat
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_nativeCreate(JNIEnv * env, jobject, jobject output_stream, jbyteArray buffer)
+jlong Java_io_glutenproject_vectorized_BlockOutputStream_nativeCreate(JNIEnv * env, jobject, jobject output_stream, jbyteArray buffer)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleWriter * writer = new local_engine::ShuffleWriter(output_stream, buffer);
@@ -924,7 +924,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_nativ
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_nativeClose(JNIEnv * env, jobject, jlong instance)
+void Java_io_glutenproject_vectorized_BlockOutputStream_nativeClose(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleWriter * writer = reinterpret_cast<local_engine::ShuffleWriter *>(instance);
@@ -933,7 +933,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_nativeWrite(JNIEnv * env, jobject, jlong instance, jlong block_address)
+void Java_io_glutenproject_vectorized_BlockOutputStream_nativeWrite(JNIEnv * env, jobject, jlong instance, jlong block_address)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleWriter * writer = reinterpret_cast<local_engine::ShuffleWriter *>(instance);
@@ -942,7 +942,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_nativeFlush(JNIEnv * env, jobject, jlong instance)
+void Java_io_glutenproject_vectorized_BlockOutputStream_nativeFlush(JNIEnv * env, jobject, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::ShuffleWriter * writer = reinterpret_cast<local_engine::ShuffleWriter *>(instance);
@@ -950,7 +950,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_BlockOutputStream_native
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_createNativeInstance(JNIEnv * env, jclass, jobject input, jbyteArray plan)
+jlong Java_io_glutenproject_vectorized_SimpleExpressionEval_createNativeInstance(JNIEnv * env, jclass, jobject input, jbyteArray plan)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto context = DB::Context::createCopy(local_engine::SerializedPlanParser::global_context);
@@ -969,7 +969,7 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_cr
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeClose(JNIEnv * env, jclass, jlong instance)
+void Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeClose(JNIEnv * env, jclass, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(instance);
@@ -977,7 +977,7 @@ JNIEXPORT void JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_nat
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeHasNext(JNIEnv * env, jclass, jlong instance)
+jboolean Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeHasNext(JNIEnv * env, jclass, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(instance);
@@ -985,7 +985,7 @@ JNIEXPORT jboolean JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval
     LOCAL_ENGINE_JNI_METHOD_END(env, false)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeNext(JNIEnv * env, jclass, jlong instance)
+jlong Java_io_glutenproject_vectorized_SimpleExpressionEval_nativeNext(JNIEnv * env, jclass, jlong instance)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(instance);
@@ -993,12 +993,12 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_vectorized_SimpleExpressionEval_na
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_getDefaultAllocator(JNIEnv* env, jclass)
+jlong Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_getDefaultAllocator(JNIEnv* env, jclass)
 {
     return -1;
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_createListenableAllocator(JNIEnv* env, jclass, jobject listener)
+jlong Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_createListenableAllocator(JNIEnv* env, jclass, jobject listener)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     auto listener_wrapper = std::make_shared<local_engine::ReservationListenerWrapper>(env->NewGlobalRef(listener));
@@ -1006,14 +1006,14 @@ JNIEXPORT jlong JNICALL Java_io_glutenproject_memory_alloc_NativeMemoryAllocator
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
 
-JNIEXPORT void JNICALL Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_releaseAllocator(JNIEnv* env, jclass, jlong allocator_id)
+void Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_releaseAllocator(JNIEnv* env, jclass, jlong allocator_id)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::releaseAllocator(allocator_id);
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 
-JNIEXPORT jlong JNICALL Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_bytesAllocated(JNIEnv* env, jclass, jlong allocator_id)
+jlong Java_io_glutenproject_memory_alloc_NativeMemoryAllocator_bytesAllocated(JNIEnv* env, jclass, jlong allocator_id)
 {
     LOCAL_ENGINE_JNI_METHOD_START
     return local_engine::allocatorMemoryUsage(allocator_id);
