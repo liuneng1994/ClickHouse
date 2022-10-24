@@ -10,11 +10,13 @@ class ReservationListenerWrapper
 public:
     static jclass reservation_listener_class;
     static jmethodID reservation_listener_reserve;
+    static jmethodID reservation_listener_reserve_no_except;
     static jmethodID reservation_listener_unreserve;
 
     explicit ReservationListenerWrapper(jobject listener);
     ~ReservationListenerWrapper();
     void reserve(int64_t size);
+    void reserveNoException(int64_t size);
     void free(int64_t size);
 
 private:
