@@ -43,9 +43,9 @@ int64_t initializeQuery(ReservationListenerWrapperPtr listener)
     CurrentMemoryTracker::before_alloc = [listener](Int64 size, bool throw_if_memory_exceed) -> void
     {
         if (throw_if_memory_exceed)
-            listener->reserve(size);
+            listener->reserveOrThrow(size);
         else
-            listener->reserveNoException(size);
+            listener->reserve(size);
     };
     CurrentMemoryTracker::before_free = [listener](Int64 size) -> void { listener->free(size); };
     {
