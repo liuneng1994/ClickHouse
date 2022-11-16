@@ -24,6 +24,7 @@
 #include <jni/jni_error.h>
 #include <jni/ReservationListenerWrapper.h>
 #include <Storages/SubstraitSource/ReadBufferBuilder.h>
+#include <Common/CHUtil.h>
 
 
 bool inside_main = true;
@@ -221,7 +222,7 @@ jlong Java_io_glutenproject_vectorized_ExpressionEvaluatorJniWrapper_nativeCreat
     std::string plan_string;
     plan_string.assign(reinterpret_cast<const char *>(plan_address), plan_size);
     auto query_plan = parser.parse(plan_string);
-    local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context);
+    local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context, query_context);
     executor->execute(std::move(query_plan));
     env->ReleaseByteArrayElements(plan, plan_address, JNI_ABORT);
     return reinterpret_cast<jlong>(executor);
@@ -263,6 +264,8 @@ void Java_io_glutenproject_row_RowIterator_nativeClose(JNIEnv * env, jobject /*o
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
+    auto event_counters = executor->getCurrentEventCounters();
+    local_engine::ProfileEventsUtil::logProfileEvents(event_counters);
     delete executor;
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
@@ -281,7 +284,6 @@ jlong Java_io_glutenproject_vectorized_BatchIterator_nativeCHNext(JNIEnv * env, 
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
     DB::Block * column_batch = executor->nextColumnar();
-    LOG_DEBUG(&Poco::Logger::get("jni"), "row size of the column batch: {}", column_batch->rows());
     return reinterpret_cast<Int64>(column_batch);
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
@@ -290,6 +292,8 @@ void Java_io_glutenproject_vectorized_BatchIterator_nativeClose(JNIEnv * env, jo
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
+    auto event_counters = executor->getCurrentEventCounters();
+    local_engine::ProfileEventsUtil::logProfileEvents(event_counters);
     delete executor;
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
@@ -903,7 +907,7 @@ jlong Java_io_glutenproject_vectorized_SimpleExpressionEval_createNativeInstance
     std::string plan_string;
     plan_string.assign(reinterpret_cast<const char *>(plan_address), plan_size);
     auto query_plan = parser.parse(plan_string);
-    local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context);
+    local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context, context);
     executor->execute(std::move(query_plan));
     env->ReleaseByteArrayElements(plan, plan_address, JNI_ABORT);
     return reinterpret_cast<jlong>(executor);
