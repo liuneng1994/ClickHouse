@@ -237,6 +237,15 @@ struct SparkBuffer
     size_t size;
 };
 
+struct ScanInfo
+{
+    std::string name;
+    long rows;
+    long time;
+    long data_size;
+    long read_buffer_time;
+};
+
 class LocalExecutor : public BlockIterator
 {
 public:
@@ -266,5 +275,6 @@ private:
     std::unique_ptr<CHColumnToSparkRow> ch_column_to_spark_row;
     std::unique_ptr<SparkBuffer> spark_buffer;
     DB::QueryPlanPtr current_query_plan;
+    std::vector<ScanInfo> scan_info_list;
 };
 }

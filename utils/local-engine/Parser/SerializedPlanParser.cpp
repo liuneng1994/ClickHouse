@@ -55,6 +55,8 @@
 #include <Processors/QueryPlan/SortingStep.h>
 #include <Storages/IStorage.h>
 #include <Common/CHUtil.h>
+#include <Common/SourceStatistics.h>
+#include <fmt/core.h>
 #include "SerializedPlanParser.h"
 
 namespace DB
@@ -1743,6 +1745,20 @@ bool LocalExecutor::hasNext()
         LOG_ERROR(
             &Poco::Logger::get("LocalExecutor"), "run query plan failed. {}\n{}", e.message(), PlanUtil::explainPlan(*current_query_plan));
         throw e;
+    }
+    if (!has_next)
+    {
+
+        LOG_INFO(&Poco::Logger::get("LocalExecutor"), "------------source profile info----------------");
+        for (const auto & processor : this->query_pipeline.getProcessors())
+        {
+            if (SourceStatistics * source = dynamic_cast<SourceStatistics*>(processor.get()))
+            {
+                ScanInfo info{processor->getName(), source->output_rows,source->time_micro_sec, source->data_size,source->getReadBufferTime()};
+                LOG_INFO(&Poco::Logger::get("LocalExecutor"), "Scan {} \t  generate rows {}\ttime in microsec {}\tchunk size {}\ttime in readbuffer {}", info.name, info.rows, info.time, info.data_size, info.read_buffer_time);
+                scan_info_list.emplace_back(info);
+            }
+        }
     }
     return has_next;
 }

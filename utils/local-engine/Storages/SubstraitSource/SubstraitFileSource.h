@@ -14,6 +14,8 @@
 #include <DataTypes/Serializations/ISerialization.h>
 #include <Storages/SubstraitSource/ReadBufferBuilder.h>
 #include <QueryPipeline/QueryPipeline.h>
+#include <Common/SourceStatistics.h>
+
 namespace local_engine
 {
 
@@ -69,7 +71,7 @@ private:
     size_t block_size;
 };
 
-class SubstraitFileSource : public DB::SourceWithProgress
+class SubstraitFileSource : public DB::SourceWithProgress, public SourceStatistics
 {
 public:
     SubstraitFileSource(DB::ContextPtr context_, const DB::Block & header_, const substrait::ReadRel::LocalFiles & file_infos);
@@ -79,6 +81,12 @@ public:
     {
         return "SubstraitFileSource";
     }
+
+    virtual long getReadBufferTime()
+    {
+        return read_buffer_time;
+    }
+
 protected:
     DB::Chunk generate() override;
 private:
@@ -87,6 +95,7 @@ private:
     DB::Block to_read_header;
     FormatFiles files;
 
+    long read_buffer_time = 0;
     UInt32 current_file_index = 0;
     std::unique_ptr<FileReaderWrapper> file_reader;
     ReadBufferBuilderPtr read_buffer_builder;

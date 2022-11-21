@@ -5,6 +5,7 @@
 #include <arrow/table.h>
 #include <boost/range/irange.hpp>
 #include <DataTypes/NestedUtils.h>
+#include <base/logger_useful.h>
 
 #include "ch_parquet/OptimizedArrowColumnToCHColumn.h"
 
@@ -44,6 +45,8 @@ static size_t countIndicesForType(std::shared_ptr<arrow::DataType> type)
 
 DB::Chunk ArrowParquetBlockInputFormat::generate()
 {
+    Stopwatch watch;
+    watch.start();
     DB::Chunk res;
     block_missing_values.clear();
 
@@ -88,9 +91,6 @@ DB::Chunk ArrowParquetBlockInputFormat::generate()
     if (is_stopped)
         return {};
 
-
-    Stopwatch watch;
-    watch.start();
     auto batch = current_record_batch_reader->Next();
     if (*batch)
     {
@@ -98,8 +98,7 @@ DB::Chunk ArrowParquetBlockInputFormat::generate()
         non_convert_time += watch.elapsedNanoseconds();
         watch.restart();
         arrow_column_to_ch_column->arrowTableToCHChunk(res, *tmp_table);
-        convert_time += watch.elapsedNanoseconds();
-    }
+        convert_time += watch.elapsedNanoseconds();}
     else
     {
         current_record_batch_reader.reset();
@@ -113,7 +112,14 @@ DB::Chunk ArrowParquetBlockInputFormat::generate()
         for (size_t row_idx = 0; row_idx < res.getNumRows(); ++row_idx)
             for (const auto & column_idx : missing_columns)
                 block_missing_values.setBit(column_idx, row_idx);
+    output_rows += res.getNumRows();
+    time_micro_sec += watch.elapsedMicroseconds();
+    data_size += res.allocatedBytes();
     return res;
+}
+ArrowParquetBlockInputFormat::~ArrowParquetBlockInputFormat()
+{
+    LOG_INFO(&Poco::Logger::get("ArrowParquetBlockInputFormat"), "ArrowParquetBlockInputFormat: generate rows {} \ttime in microsec {} \tchunk size {}\ttime in readbuffer {}\tread buffer read data {}", output_rows, time_micro_sec, data_size, getReadBufferTime(), getReadBufferDataSize());
 }
 
 }

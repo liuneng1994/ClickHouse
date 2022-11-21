@@ -73,6 +73,8 @@ SubstraitFileSource::SubstraitFileSource(DB::ContextPtr context_, const DB::Bloc
 
 DB::Chunk SubstraitFileSource::generate()
 {
+    Stopwatch stopwatch;
+    stopwatch.start();
     while(true)
     {
         if (!tryPrepareReader())
@@ -83,7 +85,12 @@ DB::Chunk SubstraitFileSource::generate()
 
         DB::Chunk chunk;
         if (file_reader->pull(chunk))
+        {
+            time_micro_sec += stopwatch.elapsedMicroseconds();
+            output_rows += chunk.getNumRows();
+            data_size += chunk.allocatedBytes();
             return chunk;
+        }
 
         /// try to read from next file
         file_reader.reset();

@@ -7,6 +7,7 @@
 
 #include <Common/Exception.h>
 #include <IO/BufferBase.h>
+#include <Common/Stopwatch.h>
 
 
 namespace DB
@@ -80,7 +81,8 @@ public:
     {
         assert(!hasPendingData());
         assert(position() <= working_buffer.end());
-
+        Stopwatch watch;
+        watch.start();
         bytes += offset();
         bool res = nextImpl();
         if (!res)
@@ -93,7 +95,8 @@ public:
         nextimpl_working_buffer_offset = 0;
 
         assert(position() <= working_buffer.end());
-
+        time_micro_seconds += watch.elapsedMicroseconds();
+        data_size += (working_buffer.end() - position());
         return res;
     }
 
@@ -235,6 +238,9 @@ public:
     virtual void setReadUntilPosition(size_t /* position */) {}
 
     virtual void setReadUntilEnd() {}
+
+    long time_micro_seconds = 0;
+    long data_size = 0;
 
 protected:
     /// The number of bytes to ignore from the initial position of `working_buffer`

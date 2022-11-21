@@ -32,6 +32,8 @@ SourceFromJavaIter::SourceFromJavaIter(DB::Block header, jobject java_iter_)
 DB::Chunk SourceFromJavaIter::generate()
 {
     GET_JNIENV(env)
+    Stopwatch watch;
+    watch.start();
     jboolean has_next = safeCallBooleanMethod(env, java_iter, serialized_record_batch_iterator_hasNext);
     DB::Chunk result;
     if (has_next)
@@ -56,6 +58,9 @@ DB::Chunk SourceFromJavaIter::generate()
             }
         }
     }
+    time_micro_sec += watch.elapsedMicroseconds();
+    output_rows += result.getNumRows();
+    data_size += result.allocatedBytes();
     CLEAN_JNIENV
     return result;
 }

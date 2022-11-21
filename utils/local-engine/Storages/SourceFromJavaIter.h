@@ -1,10 +1,11 @@
 #pragma once
 #include <Processors/ISource.h>
 #include <jni.h>
+#include <Common/SourceStatistics.h>
 
 namespace local_engine
 {
-class SourceFromJavaIter : public DB::ISource
+class SourceFromJavaIter : public DB::ISource, public SourceStatistics
 {
 public:
     static jclass serialized_record_batch_iterator_class;

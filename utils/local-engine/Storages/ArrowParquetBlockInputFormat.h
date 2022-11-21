@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Common/ChunkBuffer.h>
+#include <Common/SourceStatistics.h>
 #include "ch_parquet/OptimizedParquetBlockInputFormat.h"
 #include "ch_parquet/OptimizedArrowColumnToCHColumn.h"
 #include "ch_parquet/arrow/reader.h"
@@ -13,11 +14,22 @@ class Table;
 
 namespace local_engine
 {
-class ArrowParquetBlockInputFormat : public DB::OptimizedParquetBlockInputFormat
+class ArrowParquetBlockInputFormat : public DB::OptimizedParquetBlockInputFormat , public SourceStatistics
 {
 public:
     ArrowParquetBlockInputFormat(DB::ReadBuffer & in, const DB::Block & header, const DB::FormatSettings & formatSettings, const std::vector<int> & row_group_indices_ = {});
     //virtual ~ArrowParquetBlockInputFormat();
+    virtual long getReadBufferTime()
+    {
+        return in->time_micro_seconds;
+    }
+
+    virtual long getReadBufferDataSize()
+    {
+        return in->data_size;
+    }
+
+    ~ArrowParquetBlockInputFormat() override;
 
 private:
     DB::Chunk generate() override;
