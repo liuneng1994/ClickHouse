@@ -188,6 +188,7 @@ void init(const std::string & plan)
 
                 auto path = config->getString("path", "/");
                 local_engine::SerializedPlanParser::global_context->setPath(path);
+                local_engine::SerializedPlanParser::global_context->setTemporaryStorage("/tmp/libch", "");
                 LOG_INFO(&Poco::Logger::get("ClickHouseBackend"), "Init global context.");
             }
 
