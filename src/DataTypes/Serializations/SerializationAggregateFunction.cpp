@@ -13,9 +13,14 @@
 #include <Formats/ProtobufWriter.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
+#include <Common/Stopwatch.h>
 
 namespace DB
 {
+
+
+thread_local size_t SerializationAggregateFunction::rows = 0;
+thread_local size_t SerializationAggregateFunction::time_us = 0;
 
 void SerializationAggregateFunction::serializeBinary(const Field & field, WriteBuffer & ostr) const
 {
@@ -60,6 +65,10 @@ void SerializationAggregateFunction::deserializeBinary(IColumn & column, ReadBuf
 
 void SerializationAggregateFunction::serializeBinaryBulk(const IColumn & column, WriteBuffer & ostr, size_t offset, size_t limit) const
 {
+    auto count = limit ? std::min(limit, column.size() - offset) : column.size() - offset;
+    rows+=count;
+    Stopwatch stopwatch;
+    stopwatch.start();
     const ColumnAggregateFunction & real_column = typeid_cast<const ColumnAggregateFunction &>(column);
     const ColumnAggregateFunction::Container & vec = real_column.getData();
 
@@ -71,6 +80,7 @@ void SerializationAggregateFunction::serializeBinaryBulk(const IColumn & column,
 
     for (; it != end; ++it)
         function->serialize(*it, ostr, version);
+    time_us += stopwatch.elapsedMicroseconds();
 }
 
 void SerializationAggregateFunction::deserializeBinaryBulk(IColumn & column, ReadBuffer & istr, size_t limit, double /*avg_value_size_hint*/) const
@@ -212,6 +222,11 @@ void SerializationAggregateFunction::deserializeTextCSV(IColumn & column, ReadBu
     String s;
     readCSV(s, istr, settings.csv);
     deserializeFromString(function, column, s, version);
+}
+SerializationAggregateFunction::~SerializationAggregateFunction()
+{
+//    if (rows > 0)
+ //       std::cerr << "SerializationAggregateFunction serialize rows: " << rows << "cost: " << time_us <<std::endl;
 }
 
 }

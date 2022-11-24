@@ -10,10 +10,15 @@ template <typename T>
 class SerializationNumber : public SimpleTextSerialization
 {
     static_assert(is_arithmetic_v<T>);
+private:
+    thread_local static size_t rows;
+    thread_local static size_t time_us;
 
 public:
     using FieldType = T;
     using ColumnType = ColumnVector<T>;
+
+    ~SerializationNumber() override;
 
     void serializeText(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const override;
     void deserializeText(IColumn & column, ReadBuffer & istr, const FormatSettings & settings, bool whole) const override;

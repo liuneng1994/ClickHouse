@@ -14,12 +14,16 @@ private:
     AggregateFunctionPtr function;
     String type_name;
     size_t version;
+    thread_local static size_t rows;
+    thread_local static size_t time_us;
 
 public:
     static constexpr bool is_parametric = true;
 
     SerializationAggregateFunction(const AggregateFunctionPtr & function_, String type_name_, size_t version_)
         : function(function_), type_name(std::move(type_name_)), version(version_) {}
+
+    ~SerializationAggregateFunction() override;
 
     /// NOTE These two functions for serializing single values are incompatible with the functions below.
     void serializeBinary(const Field & field, WriteBuffer & ostr) const override;

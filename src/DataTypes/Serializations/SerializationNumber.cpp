@@ -9,9 +9,14 @@
 #include <Formats/FormatSettings.h>
 #include <Formats/ProtobufReader.h>
 #include <Core/Field.h>
+#include <Common/Stopwatch.h>
 
 namespace DB
 {
+template <typename T>
+thread_local size_t SerializationNumber<T>::rows = 0;
+template <typename T>
+thread_local size_t SerializationNumber<T>::time_us = 0;
 
 template <typename T>
 void SerializationNumber<T>::serializeText(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
@@ -134,6 +139,10 @@ void SerializationNumber<T>::deserializeBinary(IColumn & column, ReadBuffer & is
 template <typename T>
 void SerializationNumber<T>::serializeBinaryBulk(const IColumn & column, WriteBuffer & ostr, size_t offset, size_t limit) const
 {
+    auto count = limit ? std::min(limit, column.size() - offset) : column.size() - offset;
+    rows+=count;
+    Stopwatch stopwatch;
+    stopwatch.start();
     const typename ColumnVector<T>::Container & x = typeid_cast<const ColumnVector<T> &>(column).getData();
 
     size_t size = x.size();
@@ -143,6 +152,7 @@ void SerializationNumber<T>::serializeBinaryBulk(const IColumn & column, WriteBu
 
     if (limit)
         ostr.write(reinterpret_cast<const char *>(&x[offset]), sizeof(typename ColumnVector<T>::ValueType) * limit);
+    time_us += stopwatch.elapsedMicroseconds();
 }
 
 template <typename T>
@@ -153,6 +163,12 @@ void SerializationNumber<T>::deserializeBinaryBulk(IColumn & column, ReadBuffer 
     x.resize(initial_size + limit);
     size_t size = istr.readBig(reinterpret_cast<char*>(&x[initial_size]), sizeof(typename ColumnVector<T>::ValueType) * limit);
     x.resize(initial_size + size / sizeof(typename ColumnVector<T>::ValueType));
+}
+template <typename T>
+SerializationNumber<T>::~SerializationNumber()
+{
+//    if (rows > 0)
+//        std::cerr << "SerializationNumber serialize rows: " << rows << "cost: " << time_us <<std::endl;
 }
 
 template class SerializationNumber<UInt8>;
