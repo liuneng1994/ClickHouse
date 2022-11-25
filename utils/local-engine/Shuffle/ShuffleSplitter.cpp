@@ -217,7 +217,16 @@ void ColumnsBuffer::add(DB::Block & block, int start, int end)
     {
         if ((end - start) == 1)
         {
-            accumulated_columns[i]->insertFrom(*block.getByPosition(i).column, start);
+            if (checkColumn<ColumnAggregateFunction>(*block.getByPosition(i).column))
+            {
+                const auto *from = checkAndGetColumn<ColumnAggregateFunction>(*block.getByPosition(i).column);
+                auto *column = typeid_cast<ColumnAggregateFunction*>(accumulated_columns[i].get());
+                column->getData().push_back(from->getData()[start]);
+            }
+            else
+            {
+                accumulated_columns[i]->insertFrom(*block.getByPosition(i).column, start);
+            }
         }
         else
         {
@@ -296,7 +305,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     if (!hash_function)
     {
         auto & factory = DB::FunctionFactory::instance();
-        auto function = factory.get("CRC32", local_engine::SerializedPlanParser::global_context);
+        auto function = factory.get("murmurHash3_32", local_engine::SerializedPlanParser::global_context);
 
         hash_function = function->build(args);
     }
