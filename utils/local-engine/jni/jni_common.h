@@ -4,8 +4,6 @@
 #include <jni.h>
 #include <string>
 #include <Common/Exception.h>
-#include <Poco/Logger.h>
-#include <base/logger_useful.h>
 
 namespace DB
 {
@@ -33,7 +31,6 @@ jbyteArray stringTojbyteArray(JNIEnv* env, const std::string & str);
 #define LOCAL_ENGINE_JNI_JMETHOD_END(env) \
     if ((env)->ExceptionCheck())\
     {\
-        LOG_ERROR(&Poco::Logger::get("local_engine"), "Enter java exception handle.");\
         (env)->ExceptionDescribe();\
         (env)->ExceptionClear();\
         throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Call java method failed");\

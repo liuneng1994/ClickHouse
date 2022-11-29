@@ -6,7 +6,7 @@
 #include <IO/WriteBufferFromFile.h>
 #include <Common/PODArray.h>
 #include <Common/PODArray_fwd.h>
-#include <Shuffle/SelectorBuilder.h>
+
 
 //using namespace DB;
 
@@ -19,8 +19,7 @@ struct SplitOptions
     std::string local_tmp_dir;
     int map_id;
     size_t partition_nums;
-    std::string exprs;
-    // std::vector<std::string> exprs;
+    std::vector<std::string> exprs;
     std::string compress_method = "zstd";
     int compress_level;
 };
@@ -94,13 +93,13 @@ class RoundRobinSplitter : public ShuffleSplitter
 public:
     static std::unique_ptr<ShuffleSplitter> create(SplitOptions && options);
 
-    explicit RoundRobinSplitter(SplitOptions options_);
+    explicit RoundRobinSplitter(SplitOptions options_) : ShuffleSplitter(std::move(options_)) { }
 
     ~RoundRobinSplitter() override = default;
     void computeAndCountPartitionId(DB::Block & block) override;
 
 private:
-    std::unique_ptr<RoundRobinSelectorBuilder> selector_builder;
+    int32_t pid_selection = 0;
 };
 
 class HashSplitter : public ShuffleSplitter
@@ -108,24 +107,15 @@ class HashSplitter : public ShuffleSplitter
 public:
     static std::unique_ptr<ShuffleSplitter> create(SplitOptions && options);
 
-    explicit HashSplitter(SplitOptions options_);
+    explicit HashSplitter(SplitOptions options_) : ShuffleSplitter(std::move(options_)) { }
 
     ~HashSplitter() override = default;
     void computeAndCountPartitionId(DB::Block & block) override;
 
 private:
-    std::unique_ptr<HashSelectorBuilder> selector_builder;
+    DB::FunctionBasePtr hash_function;
 };
 
-class RangeSplitter : public ShuffleSplitter
-{
-public:
-    static std::unique_ptr<ShuffleSplitter> create(SplitOptions && options);
-    explicit RangeSplitter(SplitOptions options_);
-    void computeAndCountPartitionId(DB::Block & block) override;
-private:
-    std::unique_ptr<RangeSelectorBuilder> selector_builder;
-};
 struct SplitterHolder
 {
     ShuffleSplitter::Ptr splitter;

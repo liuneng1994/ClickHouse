@@ -12,13 +12,11 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypesDecimal.h>
-#include <Common/Exception.h>
 
 namespace DB
 {
 namespace ErrorCodes
 {
-    extern const int LOGICAL_ERROR;
     extern const int UNKNOWN_TYPE;
 }
 }
@@ -343,10 +341,8 @@ int64_t SparkRowInfo::getTotalBytes() const
 
 std::unique_ptr<SparkRowInfo> CHColumnToSparkRow::convertCHColumnToSparkRow(const Block & block)
 {
-    if (!block.columns())
-    {
-        throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "A block with empty columns");
-    }
+    if (!block.rows() || !block.columns())
+        return {};
 
     std::unique_ptr<SparkRowInfo> spark_row_info = std::make_unique<SparkRowInfo>(block);
     spark_row_info->setBufferAddress(reinterpret_cast<char *>(alloc(spark_row_info->getTotalBytes(), 64)));
