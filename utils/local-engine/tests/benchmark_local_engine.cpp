@@ -1465,8 +1465,95 @@ QueryPlanPtr joinPlan(QueryPlanPtr left, QueryPlanPtr right, String left_key, St
     }
 }
 
-BENCHMARK(BM_ParquetRead)->Unit(benchmark::kMillisecond)->Iterations(10);
+static void BM_BlockWrite(benchmark::State& state)
+{
+    auto int_type = std::make_shared<DataTypeInt32>();
+    auto column0 = int_type->createColumn();
+    auto column1 = int_type->createColumn();
+    auto column2 = int_type->createColumn();
 
+    column0->reserve(8192);
+    for (int i=0; i<8192; i++)
+    {
+        column0->insert(i);
+    }
+    column1->reserve(8192);
+    for (int i=0; i<8192; i++)
+    {
+        column1->insert(i+1);
+    }
+    column2->reserve(8192);
+    for (int i=0; i<8192; i++)
+    {
+        column2->insert(i+2);
+    }
+
+    ColumnsWithTypeAndName columns = {ColumnWithTypeAndName(std::move(column2),int_type, "colB")};
+    Block block(columns);
+    for (auto _ : state)
+    {
+        WriteBufferFromOwnString write_buf;
+        NativeWriter writer(write_buf,0,block.cloneEmpty());
+        for (int i = 0; i <= 2000; i++)
+        {
+            writer.write(block);
+        }
+    }
+}
+#include <DataTypes/DataTypeAggregateFunction.h>
+#include <AggregateFunctions/AggregateFunctionFactory.h>
+#include <AggregateFunctions/AggregateFunctionSum.h>
+static void BM_BlockWriteAgg(benchmark::State& state)
+{
+    const auto& factory = AggregateFunctionFactory::instance();
+
+    auto int_type = std::make_shared<DataTypeInt32>();
+    AggregateFunctionProperties properties;
+    DataTypes argments = {int_type};
+    Array params = {};
+    auto function = factory.get("sum", argments, {}, properties);
+    auto agg_type  = std::make_shared<DataTypeAggregateFunction>(function, argments, params);
+    auto column0 = int_type->createColumn();
+    auto column1 = int_type->createColumn();
+    auto column2 = agg_type->createColumn();
+    column0->reserve(8192);
+    for (int i=0; i<8192; i++)
+    {
+        column0->insert(i);
+    }
+    column1->reserve(8192);
+    for (int i=0; i<8192; i++)
+    {
+        column1->insert(i+1);
+    }
+    column2->reserve(8192);
+    auto* agg_column = assert_cast<ColumnAggregateFunction *>(column2.get());
+    for (int i=0; i<8192; i++)
+    {
+        auto * data = new AggregateFunctionSumData<Int32>();
+        data->add(i);
+        agg_column->getData().push_back(reinterpret_cast<char *>(data));
+    }
+
+    ColumnsWithTypeAndName columns = {
+        ColumnWithTypeAndName(std::move(column2),agg_type, "colB")};
+    Block block(columns);
+    for (auto _ : state)
+    {
+        WriteBufferFromOwnString write_buf;
+        NativeWriter writer(write_buf,0,block.cloneEmpty());
+        for (int i = 0; i <= 2000; i++)
+        {
+            writer.write(block);
+        }
+    }
+}
+
+
+
+BENCHMARK(BM_BlockWrite)->Unit(benchmark::kMillisecond)->Iterations(100)->Repetitions(10);
+BENCHMARK(BM_BlockWriteAgg)->Unit(benchmark::kMillisecond)->Iterations(10)->Repetitions(10);
+//BENCHMARK(BM_ParquetRead)->Unit(benchmark::kMillisecond)->Iterations(10);
 // BENCHMARK(BM_TestDecompress)->Arg(0)->Arg(1)->Arg(2)->Arg(3)->Unit(benchmark::kMillisecond)->Iterations(50)->Repetitions(6)->ComputeStatistics("80%", quantile);
 // BENCHMARK(BM_JoinTest)->Unit(benchmark::k
 // Millisecond)->Iterations(10)->Repetitions(250)->ComputeStatistics("80%", quantile);

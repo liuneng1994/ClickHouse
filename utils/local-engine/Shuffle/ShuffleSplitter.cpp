@@ -59,9 +59,13 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
     {
         ColumnsBuffer & buffer = partition_buffer[i];
         buffer.add(partitions[i]);
+        if (partitions[i].rows() >= 1024 || buffer.size() >= options.buffer_size)
+        {
+            spillPartition(i);
+        }
 //        if (buffer.size() >= options.buffer_size)
 //        {
-        spillPartition(i);
+
 //        }
     }
 }
