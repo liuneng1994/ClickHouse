@@ -30,17 +30,7 @@ void NativeSplitter::split(DB::Block & block)
     for (size_t i = 0; i < options.partition_nums; ++i)
     {
         auto buffer = partition_buffer[i];
-        size_t first_cache_count = std::min(partitions[i].rows(), options.buffer_size - buffer->size());
-        if (first_cache_count < partitions[i].rows())
-        {
-            buffer->add(partitions[i], 0, first_cache_count);
-            output_buffer.emplace(std::pair(i, std::make_unique<Block>(buffer->releaseColumns())));
-            buffer->add(partitions[i], first_cache_count, partitions[i].rows());
-        }
-        else
-        {
-            buffer->add(partitions[i], 0, first_cache_count);
-        }
+        buffer->add(partitions[i]);
         if (buffer->size() >= options.buffer_size)
         {
             output_buffer.emplace(std::pair(i, std::make_unique<Block>(buffer->releaseColumns())));

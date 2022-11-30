@@ -14,7 +14,7 @@ namespace local_engine
 {
 struct SplitOptions
 {
-    size_t buffer_size = DEFAULT_BLOCK_SIZE;
+    size_t buffer_size = 8192;
     std::string data_file;
     std::string local_tmp_dir;
     int map_id;
@@ -28,14 +28,15 @@ class ColumnsBuffer
 {
 public:
     explicit ColumnsBuffer(size_t prefer_buffer_size = 8192);
-    void add(DB::Block & columns, int start, int end);
+    void add(DB::Block & columns);
     size_t size() const;
     DB::Block releaseColumns();
     DB::Block getHeader();
 
 private:
-    DB::MutableColumns accumulated_columns;
+    std::vector<DB::Block> buffers;
     DB::Block header;
+    size_t rows = 0;
     size_t prefer_buffer_size;
 };
 

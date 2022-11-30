@@ -212,10 +212,10 @@ private:
             3);
     }
 
-    static Aggregator::Params
+    Aggregator::Params
     getMergedAggregateParam(const Block & header, const ColumnNumbers & keys, const AggregateDescriptions & aggregates)
     {
-        Settings settings;
+        const Settings & settings = this->context->getSettingsRef();
         return Aggregator::Params(header, keys, aggregates, false, settings.max_threads);
     }
 

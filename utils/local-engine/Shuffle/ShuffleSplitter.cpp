@@ -45,25 +45,24 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 {
     DB::IColumn::Selector selector;
     buildSelector(block.rows(), selector);
-//    std::vector<DB::Block> partitions;
-//    for (size_t i = 0; i < options.partition_nums; ++i)
-//        partitions.emplace_back(block.cloneEmpty());
-//    for (size_t col = 0; col < block.columns(); ++col)
-//    {
-//        DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
-//        for (size_t i = 0; i < options.partition_nums; ++i)
-//            partitions[i].getByPosition(col).column = std::move(scattered[i]);
-//    }
-
-    for (size_t i = 0; i < selector.size(); ++i)
+    std::vector<DB::Block> partitions;
+    for (size_t i = 0; i < options.partition_nums; ++i)
+        partitions.emplace_back(block.cloneEmpty());
+    for (size_t col = 0; col < block.columns(); ++col)
     {
-//        split_result.raw_partition_length[i] += partitions[i].bytes();
-        ColumnsBuffer & buffer = partition_buffer[selector[i]];
-        buffer.add(block, i, i+1);
-        if (buffer.size() == options.buffer_size)
-        {
-            spillPartition(selector[i]);
-        }
+        DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
+        for (size_t i = 0; i < options.partition_nums; ++i)
+            partitions[i].getByPosition(col).column = std::move(scattered[i]);
+    }
+
+    for (size_t i = 0; i < partitions.size(); ++i)
+    {
+        ColumnsBuffer & buffer = partition_buffer[i];
+        buffer.add(partitions[i]);
+//        if (buffer.size() >= options.buffer_size)
+//        {
+        spillPartition(i);
+//        }
     }
 }
 void ShuffleSplitter::init()
@@ -199,61 +198,37 @@ void ShuffleSplitter::writeIndexFile()
     }
 }
 
-void ColumnsBuffer::add(DB::Block & block, int start, int end)
+void ColumnsBuffer::add(DB::Block & block)
 {
     if (header.columns() == 0)
         header = block.cloneEmpty();
-    if (accumulated_columns.empty())
-    {
-        accumulated_columns.reserve(block.columns());
-        for (size_t i = 0; i < block.columns(); i++)
-        {
-            auto column = block.getColumns()[i]->cloneEmpty();
-            column->reserve(prefer_buffer_size);
-            accumulated_columns.emplace_back(std::move(column));
-        }
-    }
-    for (size_t i = 0; i < block.columns(); ++i)
-    {
-        if ((end - start) == 1)
-        {
-            if (checkColumn<ColumnAggregateFunction>(*block.getByPosition(i).column))
-            {
-                const auto *from = checkAndGetColumn<ColumnAggregateFunction>(*block.getByPosition(i).column);
-                auto *column = typeid_cast<ColumnAggregateFunction*>(accumulated_columns[i].get());
-                column->getData().push_back(from->getData()[start]);
-            }
-            else
-            {
-                accumulated_columns[i]->insertFrom(*block.getByPosition(i).column, start);
-            }
-        }
-        else
-        {
-            accumulated_columns[i]->insertRangeFrom(*block.getByPosition(i).column, start, end - start);
-        }
-
-    }
+    buffers.emplace_back(block);
+    rows += block.rows();
 }
 
 size_t ColumnsBuffer::size() const
 {
-    if (accumulated_columns.empty())
-        return 0;
-    return accumulated_columns.at(0)->size();
+    return rows;
 }
 
 DB::Block ColumnsBuffer::releaseColumns()
 {
-    DB::Columns res(std::make_move_iterator(accumulated_columns.begin()), std::make_move_iterator(accumulated_columns.end()));
-    accumulated_columns.clear();
-    if (res.empty())
+    if (rows == 0)
     {
         return header.cloneEmpty();
     }
+    else if (buffers.size() == 1)
+    {
+        auto result = buffers.at(0);
+        buffers.clear();
+        return result;
+    }
     else
     {
-        return header.cloneWithColumns(res);
+        auto result = DB::concatenateBlocks(buffers);
+        buffers.clear();
+        rows = 0;
+        return result;
     }
 }
 
@@ -288,7 +263,8 @@ std::unique_ptr<ShuffleSplitter> HashSplitter::create(SplitOptions && options_)
     return std::make_unique<HashSplitter>(std::move(options_));
 }
 
-static inline uint32_t fastRange32(uint32_t word, uint32_t p) {
+static inline uint32_t fastRange32(uint32_t word, uint32_t p)
+{
     return static_cast<uint32_t>((static_cast<uint64_t>(word) * static_cast<uint64_t>(p)) >> 32);
 }
 
@@ -298,7 +274,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     Stopwatch watch;
     watch.start();
     ColumnsWithTypeAndName args;
-    for (auto &name : options.exprs)
+    for (auto & name : options.exprs)
     {
         args.emplace_back(block.getByName(name));
     }

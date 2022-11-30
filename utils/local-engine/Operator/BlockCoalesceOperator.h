@@ -7,7 +7,7 @@ namespace local_engine
 class BlockCoalesceOperator
 {
 public:
-    BlockCoalesceOperator(size_t buf_size_):buf_size(buf_size_){}
+    explicit BlockCoalesceOperator(size_t buf_size_):buf_size(buf_size_){}
     void mergeBlock(DB::Block & block);
     bool isFull();
     DB::Block releaseBlock();
