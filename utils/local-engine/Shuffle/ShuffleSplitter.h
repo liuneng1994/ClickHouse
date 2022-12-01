@@ -14,7 +14,7 @@ namespace local_engine
 {
 struct SplitOptions
 {
-    size_t buffer_size = 8192;
+    size_t buffer_size = DEFAULT_BLOCK_SIZE;
     std::string data_file;
     std::string local_tmp_dir;
     int map_id;
@@ -80,6 +80,8 @@ private:
 
 protected:
     bool stopped = false;
+    bool has_agg_state = false;
+    bool check_types = false;
     std::vector<DB::IColumn::ColumnIndex> partition_ids;
     std::vector<ColumnsBuffer> partition_buffer;
     std::vector<std::unique_ptr<DB::NativeWriter>> partition_outputs;

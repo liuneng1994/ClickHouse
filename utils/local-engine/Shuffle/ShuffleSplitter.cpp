@@ -43,6 +43,19 @@ SplitResult ShuffleSplitter::stop()
 }
 void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 {
+    if (!check_types) [[unlikely]]
+    {
+        check_types = true;
+        for (const auto & item : block.getDataTypeNames())
+        {
+            if (item.starts_with("AggregateFunction"))
+            {
+                has_agg_state = true;
+                break;
+            }
+        }
+    }
+
     DB::IColumn::Selector selector;
     buildSelector(block.rows(), selector);
     std::vector<DB::Block> partitions;
@@ -59,14 +72,28 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
     {
         ColumnsBuffer & buffer = partition_buffer[i];
         buffer.add(partitions[i]);
-        if (partitions[i].rows() >= 1024 || buffer.size() >= options.buffer_size)
+        if (has_agg_state)
         {
-            spillPartition(i);
+
+            if (partitions[i].rows() >= 256 || buffer.size() >= options.buffer_size)
+            {
+                spillPartition(i);
+            }
         }
+        else
+        {
+            if (buffer.size() >= options.buffer_size)
+            {
+                spillPartition(i);
+            }
+        }
+
 //        if (buffer.size() >= options.buffer_size)
 //        {
-
+//            spillPartition(i);
 //        }
+//        std::cerr << partitions[i].rows() << std::endl;
+//        spillPartition(i);
     }
 }
 void ShuffleSplitter::init()
