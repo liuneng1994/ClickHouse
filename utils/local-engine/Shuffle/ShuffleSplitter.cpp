@@ -72,28 +72,11 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
     {
         ColumnsBuffer & buffer = partition_buffer[i];
         buffer.add(partitions[i]);
-        if (has_agg_state)
-        {
 
-            if (partitions[i].rows() >= 256 || buffer.size() >= options.buffer_size)
-            {
-                spillPartition(i);
-            }
-        }
-        else
+        if (buffer.size() >= options.buffer_size)
         {
-            if (buffer.size() >= options.buffer_size)
-            {
-                spillPartition(i);
-            }
+            spillPartition(i);
         }
-
-//        if (buffer.size() >= options.buffer_size)
-//        {
-//            spillPartition(i);
-//        }
-//        std::cerr << partitions[i].rows() << std::endl;
-//        spillPartition(i);
     }
 }
 void ShuffleSplitter::init()
@@ -262,6 +245,14 @@ DB::Block ColumnsBuffer::releaseColumns()
         return result;
     }
 }
+
+std::vector<DB::Block> ColumnsBuffer::releaseBlockBatch()
+{
+    auto result = buffers;
+    rows=0;
+    buffers.clear();
+    return result;
+};
 
 DB::Block ColumnsBuffer::getHeader()
 {

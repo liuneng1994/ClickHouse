@@ -28,6 +28,7 @@ public:
 
     Block getHeader() const { return header; }
     void write(const Block & block);
+    void writeBlockBatch(const std::vector<Block> & block_list);
     void flush();
 
     static String getContentType() { return "application/octet-stream"; }

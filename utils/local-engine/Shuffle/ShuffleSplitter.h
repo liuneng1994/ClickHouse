@@ -31,6 +31,7 @@ public:
     void add(DB::Block & columns);
     size_t size() const;
     DB::Block releaseColumns();
+    std::vector<DB::Block> releaseBlockBatch();
     DB::Block getHeader();
 
 private:
