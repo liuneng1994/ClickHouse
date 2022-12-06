@@ -828,7 +828,9 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
 
     bool has_first_stage = phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE);
     bool has_inter_stage = phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INTERMEDIATE_TO_INTERMEDIATE);
-    bool has_final_stage = phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INTERMEDIATE_TO_RESULT);
+    bool has_final_stage = phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INTERMEDIATE_TO_RESULT)
+        || phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_RESULT);
+    bool no_partial = phase_set.contains(substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_RESULT);
 
     if (phase_set.size() > 1)
     {
@@ -901,7 +903,8 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         else
         {
             auto arg = arg_type;
-            if (measure.measure().phase() != substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE)
+            if (measure.measure().phase() != substrait::AggregationPhase::AGGREGATION_PHASE_INITIAL_TO_INTERMEDIATE
+                && !no_partial)
             {
                 auto first = getAggregateFunction(function_name, {arg_type});
                 arg = first->getStateType();
@@ -914,7 +917,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         aggregates.push_back(agg);
     }
 
-    if (has_final_stage)
+    if (has_final_stage && !no_partial)
     {
         auto transform_params = std::make_shared<AggregatingTransformParams>(
             this->getMergedAggregateParam(plan.getCurrentDataStream().header, keys, aggregates), true);
@@ -925,7 +928,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
         auto aggregating_step = std::make_unique<AggregatingStep>(
             plan.getCurrentDataStream(),
             this->getAggregateParam(plan.getCurrentDataStream().header, keys, aggregates),
-            false,
+            no_partial,
             1000000,
             1,
             1,
@@ -1728,8 +1731,8 @@ std::unique_ptr<SparkRowInfo> LocalExecutor::writeBlockToSparkRow(Block & block)
 bool LocalExecutor::hasNext()
 {
     bool has_next;
-    try
-    {
+//    try
+//    {
         if (currentBlock().columns() == 0 || isConsumed())
         {
             auto empty_block = header.cloneEmpty();
@@ -1741,13 +1744,13 @@ bool LocalExecutor::hasNext()
         {
             has_next = true;
         }
-    }
-    catch (DB::Exception & e)
-    {
-        LOG_ERROR(
-            &Poco::Logger::get("LocalExecutor"), "run query plan failed. {}\n{}", e.message(), PlanUtil::explainPlan(*current_query_plan));
-        throw e;
-    }
+//    }
+//    catch (DB::Exception & e)
+//    {
+//        LOG_ERROR(
+//            &Poco::Logger::get("LocalExecutor"), "run query plan failed. {}\n{}", e.message(), PlanUtil::explainPlan(*current_query_plan));
+//        throw e;
+//    }
     return has_next;
 }
 SparkRowInfoPtr LocalExecutor::next()
