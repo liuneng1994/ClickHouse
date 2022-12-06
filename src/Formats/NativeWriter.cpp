@@ -192,17 +192,6 @@ void NativeWriter::writeBlockBatch(const std::vector<Block>& block_list)
     writeVarUInt(columns, ostr);
     writeVarUInt(rows, ostr);
 
-    /** The index has the same structure as the data stream.
-      * But instead of column values, it contains a mark that points to the location in the data file where this part of the column is located.
-      */
-    IndexOfBlockForNativeFormat index_block;
-    if (index)
-    {
-        index_block.num_columns = columns;
-        index_block.num_rows = rows;
-        index_block.columns.resize(columns);
-    }
-
     for (size_t i = 0; i < columns; ++i)
     {
         ColumnWithTypeAndName column = block_list.at(0).safeGetByPosition(i);
@@ -221,12 +210,6 @@ void NativeWriter::writeBlockBatch(const std::vector<Block>& block_list)
 
         writeStringBinary(type_name, ostr);
 
-        const auto * aggregate_function_data_type = typeid_cast<const DataTypeAggregateFunction *>(column.type.get());
-        if (aggregate_function_data_type && aggregate_function_data_type->isVersioned())
-        {
-            aggregate_function_data_type->setVersion(0, /* if_empty */false);
-        }
-
         /// Serialization. Dynamic, if client supports it.
         SerializationPtr serialization;
         serialization = column.type->getDefaultSerialization();
@@ -237,8 +220,6 @@ void NativeWriter::writeBlockBatch(const std::vector<Block>& block_list)
             if (!item_column->empty())    /// Zero items of data is always represented as zero number of bytes.
                 writeData(*serialization, item_column, ostr, 0, 0);
         }
-
-
     }
 }
 

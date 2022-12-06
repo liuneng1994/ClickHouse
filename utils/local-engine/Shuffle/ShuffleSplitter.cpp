@@ -43,6 +43,7 @@ SplitResult ShuffleSplitter::stop()
 }
 void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 {
+
     if (!check_types) [[unlikely]]
     {
         check_types = true;
@@ -55,7 +56,8 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
             }
         }
     }
-
+    Stopwatch scatter_time;
+    scatter_time.start();
     DB::IColumn::Selector selector;
     buildSelector(block.rows(), selector);
     std::vector<DB::Block> partitions;
@@ -63,11 +65,18 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
         partitions.emplace_back(block.cloneEmpty());
     for (size_t col = 0; col < block.columns(); ++col)
     {
+//        WhichDataType which(block.getByPosition(col).type);
+//        if (which.isAggregateFunction())
+//        {
+//            block.getByPosition(col).column->assumeMutable()->ensureOwnership();
+//        }
         DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
         for (size_t i = 0; i < options.partition_nums; ++i)
+        {
             partitions[i].getByPosition(col).column = std::move(scattered[i]);
+        }
     }
-
+    split_result.total_compute_pid_time += scatter_time.elapsedNanoseconds();
     for (size_t i = 0; i < partitions.size(); ++i)
     {
         ColumnsBuffer & buffer = partition_buffer[i];
@@ -78,6 +87,7 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
             spillPartition(i);
         }
     }
+
 }
 void ShuffleSplitter::init()
 {
@@ -110,19 +120,17 @@ void ShuffleSplitter::spillPartition(size_t partition_id)
 {
     Stopwatch watch;
     watch.start();
+    auto result = partition_buffer[partition_id].releaseBlockBatch();
+    split_result.total_spill_time += watch.elapsedNanoseconds();
+
     if (!partition_outputs[partition_id])
     {
         partition_write_buffers[partition_id] = getPartitionWriteBuffer(partition_id);
         partition_outputs[partition_id]
             = std::make_unique<DB::NativeWriter>(*partition_write_buffers[partition_id], 0, partition_buffer[partition_id].getHeader());
     }
-    DB::Block result = partition_buffer[partition_id].releaseColumns();
-    if (result.rows() > 0)
-    {
-        partition_outputs[partition_id]->write(result);
-    }
-    split_result.total_spill_time += watch.elapsedNanoseconds();
-    split_result.total_bytes_spilled += result.bytes();
+    partition_outputs[partition_id]->writeBlockBatch(result);
+//    split_result.total_bytes_spilled += result.bytes();
 }
 
 void ShuffleSplitter::mergePartitionFiles()
