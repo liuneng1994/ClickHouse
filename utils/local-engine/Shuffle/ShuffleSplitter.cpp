@@ -11,6 +11,13 @@
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Common/DebugUtils.h>
 
+namespace ProfileEvents
+{
+    extern const Event ShuffleComputePidTime;
+    extern const Event ShuffleScatterTime;
+    extern const Event ShuffleSpillWriteTime;
+
+}
 
 namespace local_engine
 {
@@ -76,7 +83,7 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
             partitions[i].getByPosition(col).column = std::move(scattered[i]);
         }
     }
-    split_result.total_compute_pid_time += scatter_time.elapsedNanoseconds();
+    ProfileEvents::increment(ProfileEvents::ShuffleScatterTime, scatter_time.elapsedNanoseconds());
     for (size_t i = 0; i < partitions.size(); ++i)
     {
         ColumnsBuffer & buffer = partition_buffer[i];
@@ -130,6 +137,7 @@ void ShuffleSplitter::spillPartition(size_t partition_id)
             = std::make_unique<DB::NativeWriter>(*partition_write_buffers[partition_id], 0, partition_buffer[partition_id].getHeader());
     }
     partition_outputs[partition_id]->writeBlockBatch(result);
+    ProfileEvents::increment(ProfileEvents::ShuffleSpillWriteTime, watch.elapsedNanoseconds());
 //    split_result.total_bytes_spilled += result.bytes();
 }
 
@@ -323,6 +331,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
         partition_ids.emplace_back(fastRange32(hash_column->get64(i), options.partition_nums));
     }
     split_result.total_compute_pid_time += watch.elapsedNanoseconds();
+    ProfileEvents::increment(ProfileEvents::ShuffleComputePidTime, watch.elapsedNanoseconds());
 }
 
 }
