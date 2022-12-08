@@ -11,6 +11,13 @@
 #include <boost/algorithm/string/case_conv.hpp>
 #include <Common/DebugUtils.h>
 
+namespace ProfileEvents
+{
+extern const Event ShuffleComputePidTime;
+extern const Event ShuffleScatterTime;
+extern const Event ShuffleSpillWriteTime;
+
+}
 
 namespace local_engine
 {
@@ -48,32 +55,40 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
     std::vector<DB::Block> partitions;
     for (size_t i = 0; i < options.partition_nums; ++i)
         partitions.emplace_back(block.cloneEmpty());
-    for (size_t col = 0; col < block.columns(); ++col)
     {
-        DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
-        for (size_t i = 0; i < options.partition_nums; ++i)
-            partitions[i].getByPosition(col).column = std::move(scattered[i]);
+        Stopwatch timer;
+        for (size_t col = 0; col < block.columns(); ++col)
+        {
+            DB::MutableColumns scattered = block.getByPosition(col).column->scatter(options.partition_nums, selector);
+            for (size_t i = 0; i < options.partition_nums; ++i)
+                partitions[i].getByPosition(col).column = std::move(scattered[i]);
+        }
+        ProfileEvents::increment(ProfileEvents::ShuffleScatterTime, timer.elapsedNanoseconds());
     }
 
-    for (size_t i = 0; i < options.partition_nums; ++i)
     {
-        split_result.raw_partition_length[i] += partitions[i].bytes();
-        ColumnsBuffer & buffer = partition_buffer[i];
-        size_t first_cache_count = std::min(partitions[i].rows(), options.buffer_size - buffer.size());
-        if (first_cache_count < partitions[i].rows())
+        Stopwatch timer;
+        for (size_t i = 0; i < options.partition_nums; ++i)
         {
-            buffer.add(partitions[i], 0, first_cache_count);
-            spillPartition(i);
-            buffer.add(partitions[i], first_cache_count, partitions[i].rows());
+            split_result.raw_partition_length[i] += partitions[i].bytes();
+            ColumnsBuffer & buffer = partition_buffer[i];
+            size_t first_cache_count = std::min(partitions[i].rows(), options.buffer_size - buffer.size());
+            if (first_cache_count < partitions[i].rows())
+            {
+                buffer.add(partitions[i], 0, first_cache_count);
+                spillPartition(i);
+                buffer.add(partitions[i], first_cache_count, partitions[i].rows());
+            }
+            else
+            {
+                buffer.add(partitions[i], 0, first_cache_count);
+            }
+            if (buffer.size() == options.buffer_size)
+            {
+                spillPartition(i);
+            }
         }
-        else
-        {
-            buffer.add(partitions[i], 0, first_cache_count);
-        }
-        if (buffer.size() == options.buffer_size)
-        {
-            spillPartition(i);
-        }
+        ProfileEvents::increment(ProfileEvents::ShuffleSpillWriteTime, timer.elapsedNanoseconds());
     }
 }
 void ShuffleSplitter::init()
@@ -285,7 +300,7 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     Stopwatch watch;
     watch.start();
     ColumnsWithTypeAndName args;
-    for (auto &name : options.exprs)
+    for (auto & name : options.exprs)
     {
         args.emplace_back(block.getByName(name));
     }
@@ -301,9 +316,10 @@ void HashSplitter::computeAndCountPartitionId(DB::Block & block)
     partition_ids.clear();
     for (size_t i = 0; i < block.rows(); i++)
     {
-        partition_ids.emplace_back(static_cast<UInt64>(hash_column->get64(i)  % options.partition_nums));
+        partition_ids.emplace_back(static_cast<UInt64>(hash_column->get64(i) % options.partition_nums));
     }
     split_result.total_compute_pid_time += watch.elapsedNanoseconds();
+    ProfileEvents::increment(ProfileEvents::ShuffleComputePidTime, watch.elapsedNanoseconds());
 }
 
 }
