@@ -293,6 +293,9 @@
     M(AggregateFinalResultColumnAppendTime, "")\
     M(AggregatePartialResultColumnAppendTime, "")\
     M(AggregateDestroyColumnTime,"")\
+    M(ShuffleComputePidTime,"")\
+    M(ShuffleScatterTime,"")\
+    M(ShuffleSpillWriteTime,"")\
 
 namespace ProfileEvents
 {
