@@ -115,7 +115,7 @@ DB::NamesAndTypesList MergeTreeUtil::getSchemaFromMergeTreePart(const fs::path &
 void ProfileEventsUtil::logProfileEvents(std::map<String, size_t> events)
 {
     auto * logger = &Poco::Logger::get("ProfileEventsUtil");
-    if (events.empty() || !logger->debug())
+    if (events.empty() || !logger->warning())
     {
         return;
     }
@@ -125,6 +125,6 @@ void ProfileEventsUtil::logProfileEvents(std::map<String, size_t> events)
     {
         event_strings.emplace_back(fmt::format("\t{} : {}", name, count));
     }
-    LOG_DEBUG(logger, "Current Profile Counters:\n{}\n", fmt::join(event_strings, "\n"));
+    LOG_WARNING(logger, "Current Profile Counters:\n{}\n", fmt::join(event_strings, "\n"));
 }
 }

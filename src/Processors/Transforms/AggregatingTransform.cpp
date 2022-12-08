@@ -9,6 +9,7 @@
 namespace ProfileEvents
 {
     extern const Event ExternalAggregationMerge;
+    extern const Event AggregateComputeTime;
 }
 
 namespace DB
@@ -523,7 +524,8 @@ void AggregatingTransform::consume(Chunk chunk)
 
     src_rows += num_rows;
     src_bytes += chunk.bytes();
-
+    Stopwatch compute_time;
+    compute_time.start();
     if (params->only_merge)
     {
         auto block = getInputs().front().getHeader().cloneWithColumns(chunk.detachColumns());
@@ -536,6 +538,7 @@ void AggregatingTransform::consume(Chunk chunk)
         if (!params->aggregator.executeOnBlock(chunk.detachColumns(), num_rows, variants, key_columns, aggregate_columns, no_more_keys))
             is_consume_finished = true;
     }
+    ProfileEvents::increment(ProfileEvents::AggregateComputeTime, compute_time.elapsedNanoseconds());
 }
 
 void AggregatingTransform::initGenerate()

@@ -33,6 +33,10 @@ namespace ProfileEvents
     extern const Event ExternalAggregationWritePart;
     extern const Event ExternalAggregationCompressedBytes;
     extern const Event ExternalAggregationUncompressedBytes;
+    extern const Event AggregateKeyColumnAppendTime;
+    extern const Event AggregateFinalResultColumnAppendTime;
+    extern const Event AggregatePartialResultColumnAppendTime;
+    extern const Event AggregateDestroyColumnTime;
 }
 
 namespace DB
@@ -1402,6 +1406,7 @@ void NO_INLINE Aggregator::convertToBlockImplFinal(
     MutableColumns & final_aggregate_columns,
     Arena * arena) const
 {
+
     if constexpr (Method::low_cardinality_optimization)
     {
         if (data.hasNullKeyData())
@@ -1416,47 +1421,91 @@ void NO_INLINE Aggregator::convertToBlockImplFinal(
 
     PaddedPODArray<AggregateDataPtr> places;
     places.reserve(data.size());
-
-    data.forEachValue([&](const auto & key, auto & mapped)
     {
-        method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
-        places.emplace_back(mapped);
+        Stopwatch key_column_time;
+        key_column_time.start();
+        data.forEachValue(
+            [&](const auto & key, auto & mapped)
+            {
+                method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
+                places.emplace_back(mapped);
 
-        /// Mark the cell as destroyed so it will not be destroyed in destructor.
-        mapped = nullptr;
-    });
-
+                /// Mark the cell as destroyed so it will not be destroyed in destructor.
+                mapped = nullptr;
+            });
+        ProfileEvents::increment(ProfileEvents::AggregateKeyColumnAppendTime, key_column_time.elapsedNanoseconds());
+    }
     std::exception_ptr exception;
     size_t aggregate_functions_destroy_index = 0;
-
-    try
     {
-#if USE_EMBEDDED_COMPILER
-        if constexpr (use_compiled_functions)
+        Stopwatch result_column_time;
+        result_column_time.start();
+        try
         {
-            /** For JIT compiled functions we need to resize columns before pass them into compiled code.
+#if USE_EMBEDDED_COMPILER
+            if constexpr (use_compiled_functions)
+            {
+                /** For JIT compiled functions we need to resize columns before pass them into compiled code.
               * insert_aggregates_into_columns_function function does not throw exception.
               */
-            std::vector<ColumnData> columns_data;
+                std::vector<ColumnData> columns_data;
 
-            auto compiled_functions = compiled_aggregate_functions_holder->compiled_aggregate_functions;
+                auto compiled_functions = compiled_aggregate_functions_holder->compiled_aggregate_functions;
 
-            for (size_t i = 0; i < params.aggregates_size; ++i)
-            {
-                if (!is_aggregate_function_compiled[i])
-                    continue;
+                for (size_t i = 0; i < params.aggregates_size; ++i)
+                {
+                    if (!is_aggregate_function_compiled[i])
+                        continue;
 
-                auto & final_aggregate_column = final_aggregate_columns[i];
-                final_aggregate_column = final_aggregate_column->cloneResized(places.size());
-                columns_data.emplace_back(getColumnData(final_aggregate_column.get()));
+                    auto & final_aggregate_column = final_aggregate_columns[i];
+                    final_aggregate_column = final_aggregate_column->cloneResized(places.size());
+                    columns_data.emplace_back(getColumnData(final_aggregate_column.get()));
+                }
+
+                auto insert_aggregates_into_columns_function = compiled_functions.insert_aggregates_into_columns_function;
+                insert_aggregates_into_columns_function(places.size(), columns_data.data(), places.data());
             }
-
-            auto insert_aggregates_into_columns_function = compiled_functions.insert_aggregates_into_columns_function;
-            insert_aggregates_into_columns_function(places.size(), columns_data.data(), places.data());
-        }
 #endif
 
-        for (; aggregate_functions_destroy_index < params.aggregates_size;)
+            for (; aggregate_functions_destroy_index < params.aggregates_size;)
+            {
+                if constexpr (use_compiled_functions)
+                {
+                    if (is_aggregate_function_compiled[aggregate_functions_destroy_index])
+                    {
+                        ++aggregate_functions_destroy_index;
+                        continue;
+                    }
+                }
+
+                auto & final_aggregate_column = final_aggregate_columns[aggregate_functions_destroy_index];
+                size_t offset = offsets_of_aggregate_states[aggregate_functions_destroy_index];
+
+                /** We increase aggregate_functions_destroy_index because by function contract if insertResultIntoBatch
+              * throws exception, it also must destroy all necessary states.
+              * Then code need to continue to destroy other aggregate function states with next function index.
+              */
+                size_t destroy_index = aggregate_functions_destroy_index;
+                ++aggregate_functions_destroy_index;
+
+                /// For State AggregateFunction ownership of aggregate place is passed to result column after insert
+                bool is_state = aggregate_functions[destroy_index]->isState();
+                bool destroy_place_after_insert = !is_state;
+
+                aggregate_functions[destroy_index]->insertResultIntoBatch(
+                    places.size(), places.data(), offset, *final_aggregate_column, arena, destroy_place_after_insert);
+            }
+        }
+        catch (...)
+        {
+            exception = std::current_exception();
+        }
+        ProfileEvents::increment(ProfileEvents::AggregateFinalResultColumnAppendTime, result_column_time.elapsedNanoseconds());
+    }
+    {
+        Stopwatch destroy_column_time;
+        destroy_column_time.start();
+        for (; aggregate_functions_destroy_index < params.aggregates_size; ++aggregate_functions_destroy_index)
         {
             if constexpr (use_compiled_functions)
             {
@@ -1467,43 +1516,11 @@ void NO_INLINE Aggregator::convertToBlockImplFinal(
                 }
             }
 
-            auto & final_aggregate_column = final_aggregate_columns[aggregate_functions_destroy_index];
             size_t offset = offsets_of_aggregate_states[aggregate_functions_destroy_index];
-
-            /** We increase aggregate_functions_destroy_index because by function contract if insertResultIntoBatch
-              * throws exception, it also must destroy all necessary states.
-              * Then code need to continue to destroy other aggregate function states with next function index.
-              */
-            size_t destroy_index = aggregate_functions_destroy_index;
-            ++aggregate_functions_destroy_index;
-
-            /// For State AggregateFunction ownership of aggregate place is passed to result column after insert
-            bool is_state = aggregate_functions[destroy_index]->isState();
-            bool destroy_place_after_insert = !is_state;
-
-            aggregate_functions[destroy_index]->insertResultIntoBatch(places.size(), places.data(), offset, *final_aggregate_column, arena, destroy_place_after_insert);
+            aggregate_functions[aggregate_functions_destroy_index]->destroyBatch(places.size(), places.data(), offset);
         }
+        ProfileEvents::increment(ProfileEvents::AggregateDestroyColumnTime, destroy_column_time.elapsedNanoseconds());
     }
-    catch (...)
-    {
-        exception = std::current_exception();
-    }
-
-    for (; aggregate_functions_destroy_index < params.aggregates_size; ++aggregate_functions_destroy_index)
-    {
-        if constexpr (use_compiled_functions)
-        {
-            if (is_aggregate_function_compiled[aggregate_functions_destroy_index])
-            {
-                ++aggregate_functions_destroy_index;
-                continue;
-            }
-        }
-
-        size_t offset = offsets_of_aggregate_states[aggregate_functions_destroy_index];
-        aggregate_functions[aggregate_functions_destroy_index]->destroyBatch(places.size(), places.data(), offset);
-    }
-
     if (exception)
         std::rethrow_exception(exception);
 }
@@ -1531,16 +1548,34 @@ void NO_INLINE Aggregator::convertToBlockImplNotFinal(
     auto shuffled_key_sizes = method.shuffleKeyColumns(key_columns, key_sizes);
     const auto & key_sizes_ref = shuffled_key_sizes ? *shuffled_key_sizes :  key_sizes;
 
-    data.forEachValue([&](const auto & key, auto & mapped)
+    PaddedPODArray<AggregateDataPtr> places;
+    places.reserve(data.size());
     {
-        method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
+        Stopwatch timer;
+        timer.start();
+        data.forEachValue(
+            [&](const auto & key, auto & mapped)
+            {
+                method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
 
-        /// reserved, so push_back does not throw exceptions
-        for (size_t i = 0; i < params.aggregates_size; ++i)
-            aggregate_columns[i]->push_back(mapped + offsets_of_aggregate_states[i]);
+                places.template emplace_back(mapped);
+                mapped = nullptr;
+            });
+        ProfileEvents::increment(ProfileEvents::AggregateKeyColumnAppendTime, timer.elapsedNanoseconds());
+    }
+    {
+        Stopwatch timer;
+        timer.start();
+        for (auto & item : places)
+        {
+            /// reserved, so push_back does not throw exceptions
+            for (size_t i = 0; i < params.aggregates_size; ++i)
+                aggregate_columns[i]->push_back(item + offsets_of_aggregate_states[i]);
+            item = nullptr;
+        }
+        ProfileEvents::increment(ProfileEvents::AggregatePartialResultColumnAppendTime, timer.elapsedNanoseconds());
+    }
 
-        mapped = nullptr;
-    });
 }
 
 
