@@ -16,6 +16,7 @@ int64_t allocatorMemoryUsage(int64_t allocator_id);
 struct NativeAllocatorContext
 {
     std::shared_ptr<DB::CurrentThread::QueryScope> query_scope;
+    std::shared_ptr<DB::ThreadGroupStatus> group;
     std::shared_ptr<DB::ThreadStatus> thread_status;
     DB::ContextPtr query_context;
     ReservationListenerWrapperPtr listener;
