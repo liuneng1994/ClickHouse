@@ -13,7 +13,12 @@
 #include <Common/Arena.h>
 #include <Common/WeakHash.h>
 #include <Common/HashTable/Hash.h>
+#include <Common/ProfileEvents.h>
 
+namespace ProfileEvents
+{
+extern const Event AggregateDestroyColumnTime;
+}
 
 namespace DB
 {
@@ -83,9 +88,12 @@ void ColumnAggregateFunction::set(const AggregateFunctionPtr & func_, size_t ver
 
 ColumnAggregateFunction::~ColumnAggregateFunction()
 {
+    Stopwatch timer;
+    timer.start();
     if (!func->hasTrivialDestructor() && !src)
         for (auto * val : data)
             func->destroy(val);
+    ProfileEvents::increment(ProfileEvents::AggregateDestroyColumnTime, timer.elapsedNanoseconds());
 }
 
 void ColumnAggregateFunction::addArena(ConstArenaPtr arena_)
