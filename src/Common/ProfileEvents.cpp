@@ -296,6 +296,9 @@
     M(ShuffleComputePidTime,"")\
     M(ShuffleScatterTime,"")\
     M(ShuffleSpillWriteTime,"")\
+    M(AggregateCreateStateTime,"")\
+    M(AggregateAddBatchTime,"")\
+
 
 namespace ProfileEvents
 {

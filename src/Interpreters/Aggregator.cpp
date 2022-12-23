@@ -37,6 +37,8 @@ namespace ProfileEvents
     extern const Event AggregateFinalResultColumnAppendTime;
     extern const Event AggregatePartialResultColumnAppendTime;
     extern const Event AggregateDestroyColumnTime;
+    extern const Event AggregateCreateStateTime;
+    extern const Event AggregateAddBatchTime;
 }
 
 namespace DB
@@ -433,6 +435,19 @@ AggregatedDataVariants::Type Aggregator::chooseAggregationMethod()
 
     if (has_nullable_key)
     {
+        if (params.keys_size == 1 && !has_low_cardinality && types_removed_nullable[0]->isValueRepresentedByNumber())
+        {
+            size_t size_of_field = types_removed_nullable[0]->getSizeOfValueInMemory();
+//            if (size_of_field == 1)
+//                return AggregatedDataVariants::Type::key8;
+//            if (size_of_field == 2)
+//                return AggregatedDataVariants::Type::key16;
+//            if (size_of_field == 4)
+//                return AggregatedDataVariants::Type::key32;
+            if (size_of_field == 8)
+                return AggregatedDataVariants::Type::nullable_key64;
+        }
+
         if (params.keys_size == num_fixed_contiguous_keys && !has_low_cardinality)
         {
             /// Pack if possible all the keys along with information about which key values are nulls
@@ -680,72 +695,80 @@ void NO_INLINE Aggregator::executeImplBatch(
 
     std::unique_ptr<AggregateDataPtr[]> places(new AggregateDataPtr[rows]);
 
-    /// For all rows.
-    for (size_t i = 0; i < rows; ++i)
     {
-        AggregateDataPtr aggregate_data = nullptr;
-
-        if constexpr (!no_more_keys)
+//        long time = 0;
+//        Stopwatch watch;
+        /// For all rows.
+        for (size_t i = 0; i < rows; ++i)
         {
-            auto emplace_result = state.emplaceKey(method.data, i, *aggregates_pool);
+            AggregateDataPtr aggregate_data = nullptr;
 
-            /// If a new key is inserted, initialize the states of the aggregate functions, and possibly something related to the key.
-            if (emplace_result.isInserted())
+            if constexpr (!no_more_keys)
             {
-                /// exception-safety - if you can not allocate memory or create states, then destructors will not be called.
-                emplace_result.setMapped(nullptr);
+//                watch.start();
+                auto emplace_result = state.emplaceKey(method.data, i, *aggregates_pool);
+//                time += watch.elapsedNanoseconds();
 
-                aggregate_data = aggregates_pool->alignedAlloc(total_size_of_aggregate_states, align_aggregate_states);
+                /// If a new key is inserted, initialize the states of the aggregate functions, and possibly something related to the key.
+                if (emplace_result.isInserted())
+                {
+                    /// exception-safety - if you can not allocate memory or create states, then destructors will not be called.
+                    emplace_result.setMapped(nullptr);
+
+                    aggregate_data = aggregates_pool->alignedAlloc(total_size_of_aggregate_states, align_aggregate_states);
 
 #if USE_EMBEDDED_COMPILER
-                if constexpr (use_compiled_functions)
-                {
-                    const auto & compiled_aggregate_functions = compiled_aggregate_functions_holder->compiled_aggregate_functions;
-                    compiled_aggregate_functions.create_aggregate_states_function(aggregate_data);
-                    if (compiled_aggregate_functions.functions_count != aggregate_functions.size())
+                    if constexpr (use_compiled_functions)
                     {
-                        static constexpr bool skip_compiled_aggregate_functions = true;
-                        createAggregateStates<skip_compiled_aggregate_functions>(aggregate_data);
+                        const auto & compiled_aggregate_functions = compiled_aggregate_functions_holder->compiled_aggregate_functions;
+                        compiled_aggregate_functions.create_aggregate_states_function(aggregate_data);
+                        if (compiled_aggregate_functions.functions_count != aggregate_functions.size())
+                        {
+                            static constexpr bool skip_compiled_aggregate_functions = true;
+                            createAggregateStates<skip_compiled_aggregate_functions>(aggregate_data);
+                        }
+
+#    if defined(MEMORY_SANITIZER)
+
+                        /// We compile only functions that do not allocate some data in Arena. Only store necessary state in AggregateData place.
+                        for (size_t aggregate_function_index = 0; aggregate_function_index < aggregate_functions.size();
+                             ++aggregate_function_index)
+                        {
+                            if (!is_aggregate_function_compiled[aggregate_function_index])
+                                continue;
+
+                            auto aggregate_data_with_offset = aggregate_data + offsets_of_aggregate_states[aggregate_function_index];
+                            auto data_size = params.aggregates[aggregate_function_index].function->sizeOfData();
+                            __msan_unpoison(aggregate_data_with_offset, data_size);
+                        }
+#    endif
                     }
-
-#if defined(MEMORY_SANITIZER)
-
-                    /// We compile only functions that do not allocate some data in Arena. Only store necessary state in AggregateData place.
-                    for (size_t aggregate_function_index = 0; aggregate_function_index < aggregate_functions.size(); ++aggregate_function_index)
-                    {
-                        if (!is_aggregate_function_compiled[aggregate_function_index])
-                            continue;
-
-                        auto aggregate_data_with_offset = aggregate_data + offsets_of_aggregate_states[aggregate_function_index];
-                        auto data_size = params.aggregates[aggregate_function_index].function->sizeOfData();
-                        __msan_unpoison(aggregate_data_with_offset, data_size);
-                    }
+                    else
 #endif
+                    {
+                        createAggregateStates(aggregate_data);
+                    }
+
+                    emplace_result.setMapped(aggregate_data);
                 }
                 else
-#endif
-                {
-                    createAggregateStates(aggregate_data);
-                }
+                    aggregate_data = emplace_result.getMapped();
 
-                emplace_result.setMapped(aggregate_data);
+                assert(aggregate_data != nullptr);
             }
             else
-                aggregate_data = emplace_result.getMapped();
+            {
+                /// Add only if the key already exists.
+                auto find_result = state.findKey(method.data, i, *aggregates_pool);
+                if (find_result.isFound())
+                    aggregate_data = find_result.getMapped();
+                else
+                    aggregate_data = overflow_row;
+            }
 
-            assert(aggregate_data != nullptr);
+            places[i] = aggregate_data;
         }
-        else
-        {
-            /// Add only if the key already exists.
-            auto find_result = state.findKey(method.data, i, *aggregates_pool);
-            if (find_result.isFound())
-                aggregate_data = find_result.getMapped();
-            else
-                aggregate_data = overflow_row;
-        }
-
-        places[i] = aggregate_data;
+//        ProfileEvents::increment(ProfileEvents::AggregateCreateStateTime, time);
     }
 
 #if USE_EMBEDDED_COMPILER
@@ -1407,7 +1430,7 @@ void NO_INLINE Aggregator::convertToBlockImplFinal(
     Arena * arena) const
 {
 
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
     {
         if (data.hasNullKeyData())
         {
@@ -1532,7 +1555,7 @@ void NO_INLINE Aggregator::convertToBlockImplNotFinal(
     std::vector<IColumn *>  key_columns,
     AggregateColumnsData & aggregate_columns) const
 {
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
     {
         if (data.hasNullKeyData())
         {
@@ -1550,31 +1573,23 @@ void NO_INLINE Aggregator::convertToBlockImplNotFinal(
 
     PaddedPODArray<AggregateDataPtr> places;
     places.reserve(data.size());
-    {
-        Stopwatch timer;
-        timer.start();
-        data.forEachValue(
-            [&](const auto & key, auto & mapped)
-            {
-                method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
-
-                places.template emplace_back(mapped);
-                mapped = nullptr;
-            });
-        ProfileEvents::increment(ProfileEvents::AggregateKeyColumnAppendTime, timer.elapsedNanoseconds());
-    }
-    {
-        Stopwatch timer;
-        timer.start();
-        for (auto & item : places)
+    data.forEachValue(
+        [&](const auto & key, auto & mapped)
         {
-            /// reserved, so push_back does not throw exceptions
-            for (size_t i = 0; i < params.aggregates_size; ++i)
-                aggregate_columns[i]->push_back(item + offsets_of_aggregate_states[i]);
-            item = nullptr;
-        }
-        ProfileEvents::increment(ProfileEvents::AggregatePartialResultColumnAppendTime, timer.elapsedNanoseconds());
+            method.insertKeyIntoColumns(key, key_columns, key_sizes_ref);
+
+            places.template emplace_back(mapped);
+            mapped = nullptr;
+        });
+
+    for (auto & item : places)
+    {
+        /// reserved, so push_back does not throw exceptions
+        for (size_t i = 0; i < params.aggregates_size; ++i)
+            aggregate_columns[i]->push_back(item + offsets_of_aggregate_states[i]);
+        item = nullptr;
     }
+
 
 }
 
@@ -1948,7 +1963,7 @@ void NO_INLINE Aggregator::mergeDataNullKey(
     Table & table_src,
     Arena * arena) const
 {
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
     {
         if (table_src.hasNullKeyData())
         {
@@ -1983,7 +1998,7 @@ void NO_INLINE Aggregator::mergeDataImpl(
     Table & table_src,
     Arena * arena) const
 {
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
         mergeDataNullKey<Method, Table>(table_dst, table_src, arena);
 
     table_src.mergeToViaEmplace(table_dst, [&](AggregateDataPtr & __restrict dst, AggregateDataPtr & __restrict src, bool inserted)
@@ -2041,7 +2056,7 @@ void NO_INLINE Aggregator::mergeDataNoMoreKeysImpl(
     Arena * arena) const
 {
     /// Note : will create data for NULL key if not exist
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
         mergeDataNullKey<Method, Table>(table_dst, table_src, arena);
 
     table_src.mergeToViaFind(table_dst, [&](AggregateDataPtr dst, AggregateDataPtr & src, bool found)
@@ -2069,7 +2084,7 @@ void NO_INLINE Aggregator::mergeDataOnlyExistingKeysImpl(
     Arena * arena) const
 {
     /// Note : will create data for NULL key if not exist
-    if constexpr (Method::low_cardinality_optimization)
+    if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
         mergeDataNullKey<Method, Table>(table_dst, table_src, arena);
 
     table_src.mergeToViaFind(table_dst,
@@ -2698,7 +2713,7 @@ void NO_INLINE Aggregator::convertBlockToTwoLevelImpl(
     /// For every row.
     for (size_t i = 0; i < rows; ++i)
     {
-        if constexpr (Method::low_cardinality_optimization)
+        if constexpr (Method::low_cardinality_optimization || Method::one_number_nullable_optimization)
         {
             if (state.isNullAt(i))
             {

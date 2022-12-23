@@ -69,6 +69,95 @@ struct HashMethodOneNumber
     const FieldType * getKeyData() const { return reinterpret_cast<const FieldType *>(vec); }
 };
 
+template <typename Value, typename Mapped, typename Key,typename FieldType, bool use_cache = true, bool need_offset = false>
+struct HashMethodOneNumberNullable
+    : public columns_hashing_impl::HashMethodBase<HashMethodOneNumberNullable<Value, Mapped, Key, FieldType, use_cache, need_offset>, Value, Mapped, use_cache, need_offset>
+{
+    using Self = HashMethodOneNumberNullable<Value, Mapped, Key, FieldType, use_cache, need_offset>;
+    using Base = columns_hashing_impl::HashMethodBase<Self, Value, Mapped, use_cache, need_offset>;
+    using EmplaceResult = columns_hashing_impl::EmplaceResultImpl<Mapped>;
+    using FindResult = columns_hashing_impl::FindResultImpl<Mapped>;
+
+    static constexpr bool has_mapped = !std::is_same_v<Mapped, void>;
+
+    const char * vec;
+    const IColumn * null_map;
+    bool has_null_data;
+
+    /// If the keys of a fixed length then key_sizes contains their lengths, empty otherwise.
+    HashMethodOneNumberNullable(const ColumnRawPtrs & key_columns, const Sizes & /*key_sizes*/, const HashMethodContextPtr &)
+    {
+        const auto *null_column = checkAndGetColumn<ColumnNullable>(key_columns[0]);
+        vec = null_column->getNestedColumnPtr()->getRawData().data;
+        null_map = &null_column->getNullMapColumn();
+        has_null_data = (null_map->getRatioOfDefaultRows() < 1.0);
+    }
+
+    explicit HashMethodOneNumberNullable(const IColumn * column)
+    {
+        const auto *null_column = checkAndGetColumn<ColumnNullable>(column);
+        vec = null_column->getNestedColumnPtr()->getRawData().data;
+        null_map = &null_column->getNullMapColumn();
+        has_null_data = (null_map->getRatioOfDefaultRows() < 1.0);
+    }
+
+    /// Creates context. Method is called once and result context is used in all threads.
+    using Base::createContext; /// (const HashMethodContext::Settings &) -> HashMethodContextPtr
+
+    template <typename Data>
+    ALWAYS_INLINE EmplaceResult emplaceKey(Data & data, size_t row, Arena & pool)
+    {
+        if (has_null_data && isNullAt(row))
+        {
+            bool has_null_key = data.hasNullKeyData();
+            data.hasNullKeyData() = true;
+
+            if constexpr (has_mapped)
+                return EmplaceResult(data.getNullKeyData(), data.getNullKeyData(), !has_null_key);
+            else
+                return EmplaceResult(!has_null_key);
+        }
+        else
+        {
+            return Base::emplaceKey(data, row, pool);
+        }
+
+    }
+
+    template <typename Data>
+    ALWAYS_INLINE FindResult findKey(Data & data, size_t row, Arena & pool)
+    {
+        if (has_null_data && isNullAt(row))
+        {
+            if constexpr (has_mapped)
+                return FindResult(data.hasNullKeyData() ? &data.getNullKeyData() : nullptr, data.hasNullKeyData(), 0);
+            else
+                return FindResult(data.hasNullKeyData(), 0);
+        }
+        else
+        {
+            Base::findKey(data, row, pool);
+        }
+    }
+
+    using Base::getHash;
+
+    ALWAYS_INLINE bool isNullAt(size_t row) const {
+        return assert_cast<const ColumnUInt8 &>(*null_map).getData()[row] != 0;
+    }
+
+    /// Is used for default implementation in HashMethodBase.
+    Key getKeyHolder(size_t row, Arena &) const {
+        union
+        {
+            Key key;
+            char bytes[sizeof(Key)] = {};
+        };
+        memcpy(bytes, vec + row * sizeof(FieldType), sizeof(FieldType));
+        return key;
+    }
+
+};
 
 /// For the case when there is one string key.
 template <typename Value, typename Mapped, bool place_string_to_arena = true, bool use_cache = true, bool need_offset = false>
@@ -482,6 +571,7 @@ struct HashMethodKeysFixed
     LowCardinalityKeys<has_low_cardinality> low_cardinality_keys;
     Sizes key_sizes;
     size_t keys_size;
+    const char * vec;
 
     /// SSSE3 shuffle method can be used. Shuffle masks will be calculated and stored here.
 #if defined(__SSSE3__) && !defined(MEMORY_SANITIZER)

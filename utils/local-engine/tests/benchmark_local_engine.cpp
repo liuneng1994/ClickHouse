@@ -893,7 +893,7 @@ DB::ContextMutablePtr global_context;
         local_engine::SerializedPlanParser parser(context);
         auto query_plan = parser.parse(plan_string);
         auto parser_us = stopwatch.elapsedMicroseconds() - context_us;
-        local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context);
+        local_engine::LocalExecutor * executor = new local_engine::LocalExecutor(parser.query_context,context);
         auto executor_us = stopwatch.elapsedMicroseconds() - parser_us;
         executor->execute(std::move(query_plan));
         auto execute_us = stopwatch.elapsedMicroseconds() - executor_us;

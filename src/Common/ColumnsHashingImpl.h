@@ -191,7 +191,7 @@ protected:
     }
 
     template <typename Data, typename KeyHolder>
-    ALWAYS_INLINE EmplaceResult emplaceImpl(KeyHolder & key_holder, Data & data)
+    EmplaceResult emplaceImpl(KeyHolder & key_holder, Data & data)
     {
         if constexpr (Cache::consecutive_keys_optimization)
         {

@@ -919,7 +919,7 @@ QueryPlanStepPtr SerializedPlanParser::parseAggregate(QueryPlan & plan, const su
     {
         auto transform_params = std::make_shared<AggregatingTransformParams>(
             this->getMergedAggregateParam(plan.getCurrentDataStream().header, keys, aggregates), true);
-        return std::make_unique<MergingAggregatedStep>(plan.getCurrentDataStream(), transform_params, true, 1, 1);
+        return std::make_unique<MergingAggregatedStep>(plan.getCurrentDataStream(), transform_params, false, 1, 1);
     }
     else
     {
