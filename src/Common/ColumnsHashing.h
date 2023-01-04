@@ -90,7 +90,7 @@ struct HashMethodOneNumberNullable
         const auto *null_column = checkAndGetColumn<ColumnNullable>(key_columns[0]);
         vec = null_column->getNestedColumnPtr()->getRawData().data;
         null_map = &null_column->getNullMapColumn();
-        has_null_data = (null_map->getRatioOfDefaultRows() < 1.0);
+        has_null_data = null_column->hasNull();
     }
 
     explicit HashMethodOneNumberNullable(const IColumn * column)
@@ -98,7 +98,7 @@ struct HashMethodOneNumberNullable
         const auto *null_column = checkAndGetColumn<ColumnNullable>(column);
         vec = null_column->getNestedColumnPtr()->getRawData().data;
         null_map = &null_column->getNullMapColumn();
-        has_null_data = (null_map->getRatioOfDefaultRows() < 1.0);
+        has_null_data = null_column->hasNull();
     }
 
     /// Creates context. Method is called once and result context is used in all threads.
