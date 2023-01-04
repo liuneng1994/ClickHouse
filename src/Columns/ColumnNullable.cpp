@@ -21,6 +21,10 @@ namespace ErrorCodes
     extern const int SIZES_OF_NESTED_COLUMNS_ARE_INCONSISTENT;
 }
 
+template <typename T>
+inline bool contain_byte(const T* __restrict data, const size_t length, const signed char byte) {
+    return nullptr != std::memchr(reinterpret_cast<const void*>(data), byte, length);
+}
 
 ColumnNullable::ColumnNullable(MutableColumnPtr && nested_column_, MutableColumnPtr && null_map_)
     : nested_column(std::move(nested_column_)), null_map(std::move(null_map_))
@@ -33,6 +37,7 @@ ColumnNullable::ColumnNullable(MutableColumnPtr && nested_column_, MutableColumn
 
     if (isColumnConst(*null_map))
         throw Exception{"ColumnNullable cannot have constant null map", ErrorCodes::ILLEGAL_COLUMN};
+    need_update_has_null = true;
 }
 
 void ColumnNullable::updateHashWithValue(size_t n, SipHash & hash) const
@@ -111,6 +116,7 @@ void ColumnNullable::insertData(const char * pos, size_t length)
     {
         getNestedColumn().insertDefault();
         getNullMapData().push_back(1);
+        has_null = true;
     }
     else
     {
@@ -167,6 +173,9 @@ void ColumnNullable::insertRangeFrom(const IColumn & src, size_t start, size_t l
     const ColumnNullable & nullable_col = assert_cast<const ColumnNullable &>(src);
     getNullMapColumn().insertRangeFrom(*nullable_col.null_map, start, length);
     getNestedColumn().insertRangeFrom(*nullable_col.nested_column, start, length);
+    const auto& src_null_map_data = nullable_col.getNullMapData();
+    has_null = hasNull();
+    has_null |= contain_byte(src_null_map_data.data() + start, length, 1);
 }
 
 void ColumnNullable::insert(const Field & x)
@@ -175,6 +184,7 @@ void ColumnNullable::insert(const Field & x)
     {
         getNestedColumn().insertDefault();
         getNullMapData().push_back(1);
+        has_null = true;
     }
     else
     {
@@ -187,7 +197,9 @@ void ColumnNullable::insertFrom(const IColumn & src, size_t n)
 {
     const ColumnNullable & src_concrete = assert_cast<const ColumnNullable &>(src);
     getNestedColumn().insertFrom(src_concrete.getNestedColumn(), n);
-    getNullMapData().push_back(src_concrete.getNullMapData()[n]);
+    auto is_null = src_concrete.getNullMapData()[n];
+    has_null |= is_null;
+    getNullMapData().push_back(is_null);
 }
 
 void ColumnNullable::insertFromNotNullable(const IColumn & src, size_t n)
@@ -707,6 +719,13 @@ ColumnPtr ColumnNullable::createWithOffsets(const IColumn::Offsets & offsets, co
     }
 
     return ColumnNullable::create(new_values, new_null_map);
+}
+
+void ColumnNullable::updateHasNull()
+{
+    const UInt8* null_pos = getNullMapData().data();
+    has_null = contain_byte(null_pos, getNullMapData().size(), 1);
+    need_update_has_null = false;
 }
 
 ColumnPtr makeNullable(const ColumnPtr & column)
