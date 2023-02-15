@@ -7,6 +7,7 @@
 #include <Common/BlockIterator.h>
 #include <Core/ColumnWithTypeAndName.h>
 #include <Core/NamesAndTypes.h>
+#include <Core/Defines.h>
 #include <Interpreters/Context_fwd.h>
 #include <Processors/Chunk.h>
 #include <base/types.h>
@@ -20,7 +21,7 @@ class NativeSplitter : BlockIterator
 public:
     struct Options
     {
-        size_t buffer_size = 8192;
+        size_t buffer_size = DEFAULT_BLOCK_SIZE;
         size_t partition_nums;
         std::string exprs_buffer;
     };
@@ -46,7 +47,7 @@ public:
 protected:
     virtual void computePartitionId(DB::Block &) { }
     Options options;
-    std::vector<DB::IColumn::ColumnIndex> partition_ids;
+    PartitionInfo partition_info;
 
 
 private:
