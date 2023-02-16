@@ -311,7 +311,7 @@ HashSplitter::HashSplitter(SplitOptions options_) : ShuffleSplitter(std::move(op
         }
     }
 
-    selector_builder = std::make_unique<HashSelectorBuilder>(options.partition_nums, hash_fields, hash_fields_index, "murmurHash3_32");
+    selector_builder = std::make_unique<HashSelectorBuilder>(options.partition_nums, hash_fields, hash_fields_index, "cityHash64");
 }
 std::unique_ptr<ShuffleSplitter> HashSplitter::create(SplitOptions && options_)
 {
