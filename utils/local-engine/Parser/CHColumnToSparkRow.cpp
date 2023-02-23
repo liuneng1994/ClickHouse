@@ -614,8 +614,8 @@ int64_t VariableLengthDataWriter::writeArray(size_t row_idx, const DB::Array & a
             if (elem.isNull())
                 bitSet(buffer_address + offset + start + 8, i);
             else
-                // writer.write(elem, buffer_address + offset + start + 8 + len_null_bitmap + i * elem_size);
-                writer.unsafeWrite(reinterpret_cast<char*>(&elem.safeGet<char>()), buffer_address + offset + start + 8 + len_null_bitmap + i * elem_size);
+//                 writer.write(elem, buffer_address + offset + start + 8 + len_null_bitmap + i * elem_size);
+                writer.unsafeWrite(reinterpret_cast<const char *>(&elem.get<char>()), buffer_address + offset + start + 8 + len_null_bitmap + i * elem_size);
         }
     }
     else
