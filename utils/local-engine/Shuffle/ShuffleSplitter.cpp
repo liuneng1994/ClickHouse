@@ -61,7 +61,6 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
             partition_buffer[j].appendSelective(i, block, partition_info.partition_selector, from, length);
         }
     }
-    ProfileEvents::increment(ProfileEvents::ShuffleScatterTime, scatter_time.elapsedNanoseconds());
 
     {
         Stopwatch time;
