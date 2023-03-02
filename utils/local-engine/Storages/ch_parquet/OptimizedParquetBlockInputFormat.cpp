@@ -193,7 +193,7 @@ NamesAndTypesList OptimizedParquetSchemaReader::readSchema()
     return header.getNamesAndTypesList();
 }
 
-void registerInputFormatParquet(FormatFactory & factory)
+void registerInputFormatOptimizedParquet(FormatFactory & factory)
 {
     factory.registerInputFormat(
             "Parquet",
@@ -208,17 +208,17 @@ void registerInputFormatParquet(FormatFactory & factory)
     factory.markFormatSupportsSubsetOfColumns("Parquet");
 }
 
-void registerOptimizedParquetSchemaReader(FormatFactory & factory)
-{
-    factory.registerSchemaReader(
-        "Parquet",
-        [](ReadBuffer & buf, const FormatSettings & settings) { return std::make_shared<OptimizedParquetSchemaReader>(buf, settings); });
-
-    factory.registerAdditionalInfoForSchemaCacheGetter(
-        "Parquet",
-        [](const FormatSettings & settings)
-        { return fmt::format("schema_inference_make_columns_nullable={}", settings.schema_inference_make_columns_nullable); });
-}
+//void registerOptimizedParquetSchemaReader(FormatFactory & factory)
+//{
+//    factory.registerSchemaReader(
+//        "Parquet",
+//        [](ReadBuffer & buf, const FormatSettings & settings) { return std::make_shared<OptimizedParquetSchemaReader>(buf, settings); });
+//
+//    factory.registerAdditionalInfoForSchemaCacheGetter(
+//        "Parquet",
+//        [](const FormatSettings & settings)
+//        { return fmt::format("schema_inference_make_columns_nullable={}", settings.schema_inference_make_columns_nullable); });
+//}
 
 }
 
