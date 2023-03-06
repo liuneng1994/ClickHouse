@@ -72,15 +72,11 @@ add_absolute_headers_and_sources(embed_ch src/Compression)
 add_absolute_headers_and_sources(embed_ch src/DataTypes)
 add_absolute_headers_and_sources(embed_ch src/DataTypes/Serializations)
 
-add_absolute_headers_and_sources(embed_ch src/Dictionaries)
-list(REMOVE_ITEM embed_ch_sources
-        ../../src/Dictionaries/MongoDBDictionarySource.cpp
-        ../../src/Dictionaries/RedisSource.cpp
-        ../../src/Dictionaries/RedisDictionarySource.cpp
-        ../../src/Dictionaries/ClickHouseDictionarySource.cpp
-        ../../src/Dictionaries/HTTPDictionarySource.cpp
-        ../../src/Dictionaries/RegExpTreeDictionary.cpp
-
+list(APPEND embed_ch_sources
+        ../../src/Dictionaries/DictionaryStructure.cpp
+        ../../src/Dictionaries/DictionaryFactory.cpp
+        ../../src/Dictionaries/DictionarySourceFactory.cpp
+        ../../src/Dictionaries/getDictionaryConfigurationFromAST.cpp
         )
 
 add_absolute_headers_and_sources(embed_ch src/Dictionaries/Embedded)
@@ -171,7 +167,6 @@ list(REMOVE_ITEM embed_ch_sources
         ../../src/Disks/registerDisks.cpp
         ../../src/Storages/registerStorages.cpp
         ../../src/Formats/registerFormats.cpp
-        ../../src/Storages/registerStorages.cpp
         )
 
 list(APPEND embed_ch_sources
