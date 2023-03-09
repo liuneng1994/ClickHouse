@@ -11,12 +11,13 @@ macro(add_absolute_headers_and_sources prefix common_path)
     add_absolute_glob(${prefix}_headers ${common_path}/*.h)
     add_absolute_glob(${prefix}_sources ${common_path}/*.c)
     add_absolute_glob(${prefix}_sources ${common_path}/*.cpp)
-#    add_absolute_glob(${prefix}_sources ${common_path}/*.h)
+    add_absolute_glob(${prefix}_sources ${common_path}/*.h)
 endmacro()
 
 include(${SOURCE_ROOT}/cmake/warnings.cmake)
 
 add_absolute_headers_and_sources(embed_ch base/readpassphrase)
+add_absolute_headers_and_sources(embed_ch base/base)
 
 add_absolute_headers_and_sources(embed_ch src/Access)
 add_absolute_headers_and_sources(embed_ch src/Access/Common)
@@ -95,6 +96,7 @@ add_absolute_headers_and_sources(embed_ch src/Interpreters/Cache)
 add_absolute_headers_and_sources(embed_ch src/Interpreters/ClusterProxy)
 
 add_absolute_headers_and_sources(embed_ch src/IO)
+add_absolute_headers_and_sources(embed_ch src/IO/S3)
 add_absolute_headers_and_sources(embed_ch src/Loggers)
 add_absolute_headers_and_sources(embed_ch src/Processors)
 add_absolute_headers_and_sources(embed_ch src/Processors/QueryPlan)
@@ -190,9 +192,9 @@ target_include_directories(embed_ch PUBLIC
 
 target_compile_options(embed_ch PUBLIC -fPIC)
 
-target_compile_definitions(embed_ch PUBLIC XXH_INLINE_ALL)
+target_compile_definitions(embed_ch PRIVATE XXH_INLINE_ALL)
 
-target_compile_options(embed_ch PUBLIC
+target_compile_options(embed_ch PRIVATE
         -Wno-zero-as-null-pointer-constant
         -Wno-signed-enum-bitfield
         -Wno-deprecated-dynamic-exception-spec
@@ -231,6 +233,73 @@ target_compile_options(embed_ch PUBLIC
         -Wno-inconsistent-missing-destructor-override
         -Wnon-power-of-two-alignment
         )
+
+add_custom_command(OUTPUT copy_deps
+        COMMAND rm -rf deps && mkdir -p deps &&
+        cp $<TARGET_FILE:Poco::Foundation> deps/ &&
+        cp ${CMAKE_BINARY_DIR}/contrib/boost-cmake/*.a deps/ &&
+        cp ${CMAKE_BINARY_DIR}/contrib/abseil-cpp/absl/container/*.a deps/ &&
+        cp ${CMAKE_BINARY_DIR}/contrib/abseil-cpp/absl/hash/*.a deps/ &&
+        cp ${CMAKE_BINARY_DIR}/contrib/icu-cmake/*.a deps/ &&
+        cp $<TARGET_FILE:ch_contrib::cityhash> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::nuraft> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::aws_s3> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::krb5> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::rocksdb> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::snappy> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::cctz> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::xz> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::fmt> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::re2> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::re2_st> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::metrohash> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::lz4> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::cityhash> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::dragonbox_to_chars> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::roaring> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::double_conversion> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::zlib> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::zstd> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::farmhash> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::hashidsxx> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::murmurhash> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::fastops> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::simdjson> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::vectorscan> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::base64> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::consistent_hashing> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::jemalloc> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::c-ares> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::hdfs> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::yaml_cpp> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::parquet> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::avrocpp> deps/ &&
+        cp $<TARGET_FILE:divide_impl> deps/ &&
+        cp $<TARGET_FILE:Poco::Crypto> deps/ &&
+        cp $<TARGET_FILE:Poco::Foundation> deps/ &&
+        cp $<TARGET_FILE:Poco::Data> deps/ &&
+        cp $<TARGET_FILE:Poco::JSON> deps/ &&
+        cp $<TARGET_FILE:Poco::JSON::Pdjson> deps/ &&
+        cp $<TARGET_FILE:Poco::Net> deps/ &&
+        cp $<TARGET_FILE:Poco::Net::SSL> deps/ &&
+        cp $<TARGET_FILE:Poco::Util> deps/ &&
+        cp $<TARGET_FILE:Poco::XML> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::thrift> deps/ &&
+        cp $<TARGET_FILE:OpenSSL::Crypto> deps/ &&
+        cp $<TARGET_FILE:OpenSSL::SSL> deps/ &&
+        cp $<TARGET_FILE:Poco::Foundation::PCRE> deps/ &&
+        cp ${CMAKE_BINARY_DIR}/contrib/llvm-project/llvm/lib/*.a deps/ &&
+        cp $<TARGET_FILE:_arrow> deps/ &&
+        cp $<TARGET_FILE:_parquet> deps/ &&
+        cp $<TARGET_FILE:_orc> deps/ &&
+        cp $<TARGET_FILE:protobuf::libprotobuf> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::thrift> deps/ &&
+        cp $<TARGET_FILE:ch_contrib::zlib> deps/
+
+        DEPENDS embed_ch)
+
+add_custom_target(copy_deps ALL DEPENDS copy_deps)
+
 
 target_link_libraries(embed_ch PUBLIC
         ch_contrib::nuraft
@@ -295,3 +364,4 @@ target_link_libraries(embed_ch PUBLIC
         OpenSSL::Crypto
         OpenSSL::SSL
         )
+
