@@ -102,16 +102,7 @@ if (ENABLE_FUZZING)
     set (ENABLE_PROTOBUF 1)
 endif()
 
-set(ENABLE_LIBPQXX OFF)
-set(ENABLE_LDAP OFF)
-set(ENABLE_BROTLI OFF)
-set(ENABLE_BZIP2 OFF)
-set(ENABLE_CAPNP OFF)
-set(ENABLE_S2_GEOMETRY OFF)
-set(ENABLE_H3 OFF)
-set(ENABLE_MYSQL OFF)
-set(ENABLE_DATASKETCHES OFF)
-set(ENABLE_SQLITE OFF)
+
 
 # Global libraries
 # See:
@@ -432,6 +423,7 @@ if (USE_MUSL)
 endif ()
 
 include(cmake/dbms_glob_sources.cmake)
+set (CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(global-group INTERFACE)
 if (OS_LINUX OR OS_ANDROID)
@@ -463,7 +455,6 @@ endif ()
 
 set (CMAKE_POSTFIX_VARIABLE "CMAKE_${CMAKE_BUILD_TYPE_UC}_POSTFIX")
 
-set (CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (OS_LINUX AND NOT ARCH_AARCH64)
     # Slightly more efficient code can be generated
     # It's disabled for ARM because otherwise ClickHouse cannot run on Android.
