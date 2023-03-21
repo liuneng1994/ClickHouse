@@ -23,13 +23,17 @@ jmethodID NativeSplitter::iterator_next = nullptr;
 
 void NativeSplitter::split(DB::Block & block)
 {
+    if (block.rows() == 0)
+    {
+        return;
+    }
     auto column_num = block.columns();
     computePartitionId(block);
     const auto &  columns = block.getColumns();
     for (size_t i = 0; i < column_num; i++)
     {
         auto materialized_column = columns[i]->convertToFullColumnIfConst();
-        for (size_t j = 0; j < options.partition_nums; ++j)
+        for (size_t j = 0; j < partition_info.partition_num; ++j)
         {
             size_t from = partition_info.partition_start_points[j];
             size_t length = partition_info.partition_start_points[j + 1] - from;
@@ -181,7 +185,7 @@ void RoundRobinNativeSplitter::computePartitionId(Block & block)
 RangePartitionNativeSplitter::RangePartitionNativeSplitter(NativeSplitter::Options options_, jobject input)
     : NativeSplitter(options_, input)
 {
-    selector_builder = std::make_unique<RangeSelectorBuilder>(options_.exprs_buffer);
+    selector_builder = std::make_unique<RangeSelectorBuilder>(options_.exprs_buffer, options_.partition_nums);
 }
 
 void RangePartitionNativeSplitter::computePartitionId(DB::Block & block)

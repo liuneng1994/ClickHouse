@@ -18,6 +18,7 @@ struct PartitionInfo
 {
     DB::IColumn::Selector partition_selector;
     std::vector<size_t> partition_start_points;
+    size_t partition_num;
 
     static PartitionInfo fromSelector(DB::IColumn::Selector selector, size_t partition_num);
 };
@@ -52,7 +53,7 @@ private:
 class RangeSelectorBuilder
 {
 public:
-    explicit RangeSelectorBuilder(const std::string & options_);
+    explicit RangeSelectorBuilder(const std::string & options_, const size_t partition_num_);
     PartitionInfo build(DB::Block & block);
 private:
     DB::SortDescription sort_descriptions;
@@ -70,6 +71,7 @@ private:
     std::unique_ptr<substrait::Plan> projection_plan_pb;
     std::atomic<bool> has_init_actions_dag;
     std::unique_ptr<DB::ExpressionActions> projection_expression_actions;
+    size_t partition_num;
 
     void initSortInformation(Poco::JSON::Array::Ptr orderings);
     void initRangeBlock(Poco::JSON::Array::Ptr range_bounds);

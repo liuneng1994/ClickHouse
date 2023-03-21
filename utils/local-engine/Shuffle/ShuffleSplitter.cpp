@@ -19,6 +19,10 @@ namespace local_engine
 {
 void ShuffleSplitter::split(DB::Block & block)
 {
+    if (block.rows() == 0)
+    {
+        return;
+    }
     Stopwatch watch;
     watch.start();
     computeAndCountPartitionId(block);
@@ -46,13 +50,10 @@ SplitResult ShuffleSplitter::stop()
 }
 void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
 {
-    Stopwatch scatter_time;
-    scatter_time.start();
     auto column_num = block.columns();
-    const auto &  columns = block.getColumns();
     for (size_t i = 0; i < column_num; i++)
     {
-        for (size_t j = 0; j < options.partition_nums; ++j)
+        for (size_t j = 0; j < partition_info.partition_num; ++j)
         {
             size_t from = partition_info.partition_start_points[j];
             size_t length = partition_info.partition_start_points[j + 1] - from;
@@ -62,18 +63,15 @@ void ShuffleSplitter::splitBlockByPartition(DB::Block & block)
         }
     }
 
+    for (size_t i = 0; i < options.partition_nums; ++i)
     {
-        Stopwatch time;
-        time.start();
-        for (size_t i = 0; i < options.partition_nums; ++i)
+        ColumnsBuffer & buffer = partition_buffer[i];
+        if (buffer.size() >= options.split_size)
         {
-            ColumnsBuffer & buffer = partition_buffer[i];
-            if (buffer.size() >= options.split_size)
-            {
-                spillPartition(i);
-            }
+            spillPartition(i);
         }
     }
+
 }
 void ShuffleSplitter::init()
 {
@@ -332,7 +330,7 @@ std::unique_ptr<ShuffleSplitter> RangeSplitter::create(SplitOptions && options_)
 
 RangeSplitter::RangeSplitter(SplitOptions options_) : ShuffleSplitter(std::move(options_))
 {
-    selector_builder = std::make_unique<RangeSelectorBuilder>(options.exprs);
+    selector_builder = std::make_unique<RangeSelectorBuilder>(options.exprs, options.partition_nums);
 }
 void RangeSplitter::computeAndCountPartitionId(DB::Block & block)
 {

@@ -41,7 +41,8 @@ PartitionInfo PartitionInfo::fromSelector(DB::IColumn::Selector selector, size_t
         partition_selector[partition_row_idx_start_points[selector[i]] - 1] = i;
         partition_row_idx_start_points[selector[i]]--;
     }
-    return PartitionInfo{.partition_selector = std::move(partition_selector), .partition_start_points = partition_row_idx_start_points};
+    return PartitionInfo{.partition_selector = std::move(partition_selector), .partition_start_points = partition_row_idx_start_points,
+                         .partition_num = partition_num};
 }
 
 PartitionInfo RoundRobinSelectorBuilder::build(DB::Block & block)
@@ -118,7 +119,7 @@ static std::map<int, std::pair<int, int>> direction_map = {
         {4, {-1, -1}}
 };
 
-RangeSelectorBuilder::RangeSelectorBuilder(const std::string & option)
+RangeSelectorBuilder::RangeSelectorBuilder(const std::string & option, const size_t partition_num_)
 {
     Poco::JSON::Parser parser;
     auto info = parser.parse(option).extract<Poco::JSON::Object::Ptr>();
@@ -136,6 +137,7 @@ RangeSelectorBuilder::RangeSelectorBuilder(const std::string & option)
     auto ordering_infos = info->get("ordering").extract<Poco::JSON::Array::Ptr>();
     initSortInformation(ordering_infos);
     initRangeBlock(info->get("range_bounds").extract<Poco::JSON::Array::Ptr>());
+    partition_num = partition_num_;
 }
 
 PartitionInfo RangeSelectorBuilder::build(DB::Block & block)
@@ -161,7 +163,7 @@ PartitionInfo RangeSelectorBuilder::build(DB::Block & block)
     {
         computePartitionIdByBinarySearch(block, result);
     }
-    return PartitionInfo::fromSelector(std::move(result), range_bounds_block.getColumns()[0]->size());
+    return PartitionInfo::fromSelector(std::move(result), partition_num);
 }
 
 void RangeSelectorBuilder::initSortInformation(Poco::JSON::Array::Ptr orderings)
