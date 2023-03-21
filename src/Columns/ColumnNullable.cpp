@@ -8,6 +8,7 @@
 #include <Columns/ColumnConst.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnCompressed.h>
+#include <Columns/ColumnsCommon.h>
 #include <Processors/Transforms/ColumnGathererTransform.h>
 
 #if USE_EMBEDDED_COMPILER
@@ -188,7 +189,7 @@ void ColumnNullable::insertRangeSelective(const IColumn & src, const IColumn::Se
     const ColumnNullable & nullable_col = static_cast<const ColumnNullable &>(src);
     getNestedColumn().insertRangeSelective(*nullable_col.nested_column, selector, selector_start, length);
 
-    if (nullable_col.hasNull())
+    if (!memoryIsZero(getNullMapData().data(), 0, size()))
     {
         getNullMapColumn().insertRangeSelective(*nullable_col.null_map, selector, selector_start, length);
     }

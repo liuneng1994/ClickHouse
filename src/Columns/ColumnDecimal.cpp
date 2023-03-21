@@ -261,7 +261,7 @@ void ColumnDecimal<T>::insertRangeFrom(const IColumn & src, size_t start, size_t
     memcpy(data.data() + old_size, &src_vec.data[start], length * sizeof(data[0]));
 }
 
-template <typename T>
+template <is_decimal T>
 void ColumnDecimal<T>::insertRangeSelective(const IColumn & src, const IColumn::Selector & selector, size_t selector_start, size_t length)
 {
     size_t old_size = data.size();

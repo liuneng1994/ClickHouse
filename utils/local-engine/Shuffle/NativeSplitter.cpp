@@ -53,7 +53,6 @@ NativeSplitter::NativeSplitter(Options options_, jobject input_) : options(optio
 {
     GET_JNIENV(env)
     input = env->NewGlobalRef(input_);
-    partition_ids.reserve(options.buffer_size);
     partition_buffer.reserve(options.partition_nums);
     for (size_t i = 0; i < options.partition_nums; ++i)
     {
