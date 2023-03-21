@@ -84,7 +84,7 @@ target_link_libraries(${LOCALENGINE_SHARED_LIB} PUBLIC
 #set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${CMAKE_SYSTEM_PROCESSOR}")
 #include(CPack)
 
-#if (ENABLE_TESTS)
-add_subdirectory(tests)
-#endif ()
+if (ENABLE_TESTS)
+    add_subdirectory(tests)
+endif ()
 
