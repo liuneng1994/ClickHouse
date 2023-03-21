@@ -105,6 +105,16 @@ static jmethodID spark_row_info_constructor;
 static jclass split_result_class;
 static jmethodID split_result_constructor;
 
+static jclass native_metrics_class;
+static jmethodID native_metrics_constructor;
+
+static jclass java_map_class;
+static jmethodID java_map_constructor;
+static jmethodID java_map_put;
+
+static jclass java_long_class;
+static jmethodID java_long_valueof;
+
 jint JNI_OnLoad(JavaVM * vm, void * /*reserved*/)
 {
     JNIEnv * env;
@@ -159,6 +169,16 @@ jint JNI_OnLoad(JavaVM * vm, void * /*reserved*/)
     local_engine::ReservationListenerWrapper::reservation_listener_unreserve
         = local_engine::GetMethodID(env, local_engine::ReservationListenerWrapper::reservation_listener_class, "unreserve", "(J)J");
 
+    java_map_class = local_engine::CreateGlobalClassReference(env, "Ljava/util/HashMap;");
+    java_map_constructor = local_engine::GetMethodID(env,java_map_class, "<init>", "(I)V");
+    java_map_put = local_engine::GetMethodID(env,java_map_class, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+
+    native_metrics_class = local_engine::CreateGlobalClassReference(env, "Lio/glutenproject/metrics/NativeMetrics;");
+    native_metrics_constructor = local_engine::GetMethodID(env,native_metrics_class, "<init>", "(Ljava/util/HashMap;)V");
+
+    java_long_class = local_engine::CreateGlobalClassReference(env, "Ljava/lang/Long;");
+    java_long_valueof = local_engine::GetStaticMethodID(env,java_long_class, "valueOf", "(J)Ljava/lang/Long;");
+
     local_engine::JNIUtils::vm = vm;
     local_engine::registerReadBufferBuildes(local_engine::ReadBufferBuilderFactory::instance());
     local_engine::initRelParserFactory();
@@ -177,6 +197,9 @@ void JNI_OnUnload(JavaVM * vm, void * /*reserved*/)
     env->DeleteGlobalRef(local_engine::NativeSplitter::iterator_class);
     env->DeleteGlobalRef(local_engine::WriteBufferFromJavaOutputStream::output_stream_class);
     env->DeleteGlobalRef(local_engine::ReservationListenerWrapper::reservation_listener_class);
+    env->DeleteGlobalRef(java_map_class);
+    env->DeleteGlobalRef(native_metrics_class);
+    env->DeleteGlobalRef(java_long_class);
     if (local_engine::SerializedPlanParser::global_context)
     {
         local_engine::SerializedPlanParser::global_context->shutdown();
@@ -299,9 +322,29 @@ void Java_io_glutenproject_vectorized_BatchIterator_nativeClose(JNIEnv * env, jo
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
+    // auto event_counters = executor->getCurrentEventCounters();
+    // local_engine::ProfileEventsUtil::logProfileEvents(event_counters);
+    delete executor;
+    LOCAL_ENGINE_JNI_METHOD_END(env,)
+}
+
+jobject Java_io_glutenproject_vectorized_BatchIterator_nativeFetchMetrics(JNIEnv * env, jobject /*obj*/, jlong executor_address)
+{
+    LOCAL_ENGINE_JNI_METHOD_START
+    local_engine::LocalExecutor * executor = reinterpret_cast<local_engine::LocalExecutor *>(executor_address);
     auto event_counters = executor->getCurrentEventCounters();
     local_engine::ProfileEventsUtil::logProfileEvents(event_counters);
-    delete executor;
+
+    jobject metrics_map = env->NewObject(java_map_class, java_map_constructor, event_counters.size());
+
+    for (auto it : event_counters)
+    {
+        jobject j_long_value = local_engine::safeCallStaticObjectMethod(env,java_long_class, java_long_valueof, it.second);
+        local_engine::safeCallObjectMethod(env,metrics_map, java_map_put, local_engine::charTojstring(env, it.first.c_str()), j_long_value);
+    }
+
+    jobject native_metrics = env->NewObject(native_metrics_class, native_metrics_constructor, metrics_map);
+    return native_metrics;
     LOCAL_ENGINE_JNI_METHOD_END(env,)
 }
 

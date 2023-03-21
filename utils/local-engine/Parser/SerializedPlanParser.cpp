@@ -2383,10 +2383,23 @@ std::map<String, size_t> LocalExecutor::getCurrentEventCounters()
         auto & count = DB::CurrentThread::getProfileEvents()[metric_index_map[event]];
         event_counters[event] = count;
     }
+    size_t j = 0;
     for (const auto & item : query_pipeline.getProcessors())
     {
 //        event_counters[item->getName() + "_input_wait"] = item->getInputWaitElapsedUs();
-        event_counters[item->getName() + "_elapsed"] = item->getElapsedUs();
+        if (OPERATOR_METRICS_LIST.contains(item->getName()))
+        {
+            event_counters[item->getName() + "_" + std::to_string(j) + "_elapsed"] = item->getElapsedUs();
+            j++;
+        }
+        else if (MERGE_OPERATOR_METRICS_LIST.contains(item->getName()))
+        {
+            event_counters[item->getName() + "_elapsed"] += item->getElapsedUs();
+        }
+        else
+        {
+            event_counters["extra_elapsed"] += item->getElapsedUs();
+        }
     }
     return event_counters;
 }

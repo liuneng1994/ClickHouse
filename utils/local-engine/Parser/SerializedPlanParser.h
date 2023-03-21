@@ -189,7 +189,25 @@ static const std::map<std::string, std::string> SCALAR_FUNCTIONS = {
 
 static const std::set<std::string> FUNCTION_NEED_KEEP_ARGUMENTS = {"alias"};
 
-struct QueryContext
+static const std::set<std::string> OPERATOR_METRICS_LIST = {
+    "AggregatingTransform",
+    "FillingRightJoinSide",
+    "JoiningTransform",
+    "FilterTransform",
+    "MergingAggregatedTransform",
+    "SubstraitFileSource",
+    "MergeTreeInOrder"
+};
+
+static const std::set<std::string> MERGE_OPERATOR_METRICS_LIST = {
+    "NullSource",
+    "ExpressionTransform",
+    "SourceFromJavaIter",
+    "ConvertingAggregatedToChunksTransform",
+    "ConvertingAggregatedToChunksSource"
+};
+
+    struct QueryContext
 {
     StorageSnapshotPtr storage_snapshot;
     std::shared_ptr<DB::StorageInMemoryMetadata> metadata;

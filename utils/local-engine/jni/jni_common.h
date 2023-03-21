@@ -40,6 +40,15 @@ jobject safeCallObjectMethod(JNIEnv * env, jobject obj, jmethodID method_id, Arg
 }
 
 template <typename ... Args>
+jobject safeCallStaticObjectMethod(JNIEnv * env, jclass clz, jmethodID method_id, Args ... args)
+{
+    LOCAL_ENGINE_JNI_JMETHOD_START
+    auto ret = env->CallStaticObjectMethod(clz, method_id, args...);
+    LOCAL_ENGINE_JNI_JMETHOD_END(env)
+    return ret;
+}
+
+template <typename ... Args>
 jboolean safeCallBooleanMethod(JNIEnv * env, jobject obj, jmethodID method_id, Args ... args)
 {
     LOCAL_ENGINE_JNI_JMETHOD_START
