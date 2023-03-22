@@ -189,7 +189,7 @@ void ColumnNullable::insertRangeSelective(const IColumn & src, const IColumn::Se
     const ColumnNullable & nullable_col = static_cast<const ColumnNullable &>(src);
     getNestedColumn().insertRangeSelective(*nullable_col.nested_column, selector, selector_start, length);
 
-    if (!memoryIsZero(nullable_col.getNullMapData().data(), 0, size()))
+    if (!memoryIsZero(nullable_col.getNullMapData().data(), 0, nullable_col.size()))
     {
         getNullMapColumn().insertRangeSelective(*nullable_col.null_map, selector, selector_start, length);
     }
