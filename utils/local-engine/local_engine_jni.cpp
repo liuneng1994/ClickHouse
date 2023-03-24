@@ -555,10 +555,8 @@ jlong Java_io_glutenproject_vectorized_CHCoalesceOperator_nativeRelease(JNIEnv *
 {
     LOCAL_ENGINE_JNI_METHOD_START
     local_engine::BlockCoalesceOperator * instance = reinterpret_cast<local_engine::BlockCoalesceOperator *>(instance_address);
-    auto block = instance->releaseBlock();
-    DB::Block * new_block = new DB::Block();
-    new_block->swap(block);
-    Int64 address = reinterpret_cast<jlong>(new_block);
+    auto * block = instance->releaseBlock();
+    Int64 address = reinterpret_cast<jlong>(block);
     return address;
     LOCAL_ENGINE_JNI_METHOD_END(env, -1)
 }
