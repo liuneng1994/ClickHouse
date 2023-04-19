@@ -36,6 +36,9 @@ MemoryTracker * getMemoryTracker()
 }
 
 using DB::current_thread;
+thread_local std::function<void(Int64, bool)> CurrentMemoryTracker::before_alloc = nullptr;
+
+thread_local std::function<void(Int64)> CurrentMemoryTracker::before_free  = nullptr;
 
 void CurrentMemoryTracker::allocImpl(Int64 size, bool throw_if_memory_exceeded)
 {
@@ -52,11 +55,12 @@ void CurrentMemoryTracker::allocImpl(Int64 size, bool throw_if_memory_exceeded)
         if (current_thread)
         {
             Int64 will_be = current_thread->untracked_memory + size;
-
-            if (will_be > current_thread->untracked_memory_limit)
+                if (will_be > current_thread->untracked_memory_limit)
             {
-                memory_tracker->allocImpl(will_be, throw_if_memory_exceeded);
                 current_thread->untracked_memory = 0;
+                if (before_alloc)
+                    before_alloc(will_be, throw_if_memory_exceeded);
+                memory_tracker->allocImpl(will_be, throw_if_memory_exceeded);
             }
             else
             {
@@ -106,6 +110,8 @@ void CurrentMemoryTracker::free(Int64 size)
             current_thread->untracked_memory -= size;
             if (current_thread->untracked_memory < -current_thread->untracked_memory_limit)
             {
+                if (before_free)
+                    before_free(-current_thread->untracked_memory);
                 memory_tracker->free(-current_thread->untracked_memory);
                 current_thread->untracked_memory = 0;
             }
