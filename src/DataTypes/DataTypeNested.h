@@ -19,6 +19,9 @@ public:
     }
 
     String getName() const override;
+    size_t getElementNum() const {
+        return names.size();
+    }
 };
 
 DataTypePtr createNested(const DataTypes & types, const Names & names);
