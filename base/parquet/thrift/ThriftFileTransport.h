@@ -13,9 +13,10 @@ public:
     }
 
 
-    uint32_t read_virt(uint8_t * buf, uint32_t len) override {
+    uint32_t read(uint8_t * buf, uint32_t len) {
         size_t n = file->read(reinterpret_cast<char*>(buf), len);
         location += n;
+        return static_cast<uint32_t>(n);
     }
 
     void setLocation(size_t location_) {
