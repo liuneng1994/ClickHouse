@@ -40,11 +40,11 @@ struct PhysicalTypeTraits<parquet::format::Type::DOUBLE> {
     using CppType = Float64;
 };
 
-//template <>
-//struct PhysicalTypeTraits<parquet::format::Type::BYTE_ARRAY> {
-//    using CppType = Slice;
-//};
-//
+template <>
+struct PhysicalTypeTraits<parquet::format::Type::BYTE_ARRAY> {
+    using CppType = DB::String;
+};
+
 //template <>
 //struct PhysicalTypeTraits<parquet::format::Type::FIXED_LEN_BYTE_ARRAY> {
 //    using CppType = Slice;

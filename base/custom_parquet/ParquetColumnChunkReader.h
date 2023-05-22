@@ -34,7 +34,7 @@ public:
 
     size_t numValues() const { return num_values; }
 
-    size_t decode_def_levels(size_t n, size_t * levels) {
+    size_t decode_def_levels(size_t n, level_t * levels) {
 //        DCHECK_GT(_max_def_level, 0);
         return def_level_decoder.decode_batch(n, levels);
     }
@@ -42,7 +42,7 @@ public:
     LevelDecoder& getDefLevelDecoder() { return def_level_decoder; }
     LevelDecoder& getRepLevelDecoder() { return rep_level_decoder; }
 
-    size_t decode_rep_levels(size_t n, size_t * levels) {
+    size_t decode_rep_levels(size_t n, level_t * levels) {
 //        DCHECK_GT(_max_rep_level, 0);
         return rep_level_decoder.decode_batch(n, levels);
     }

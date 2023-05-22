@@ -1,30 +1,44 @@
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesNumber.h>
 #include <IO/ReadBufferFromFile.h>
 #include <gtest/gtest.h>
 #include <Poco/AutoPtr.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/Logger.h>
-#include <DataTypes/DataTypesNumber.h>
 #include "../ParquetFileReader.h"
 
 using namespace DB;
 
+DataTypePtr string_type = makeNullable(std::make_shared<DataTypeString>());
+DataTypePtr int64_type = makeNullable(std::make_shared<DataTypeInt64>());
+DataTypePtr float_type = makeNullable(std::make_shared<DataTypeFloat32>());
+
+
+
 TEST(Parquet, load_meta_data)
 {
-    auto file = std::make_shared<ReadBufferFromFile>("/home/saber/dev/data/tpch/parquet/lineitem/part-00000-f83d0a59-2bff-41bc-acde-911002bf1b33-c000.snappy.parquet");
+    auto file = std::make_shared<ReadBufferFromFile>(
+        "/home/admin1/data/tpch100/parquet/lineitem/part-00000-066b93b4-39e1-4d46-83ab-d7752096b599-c000.snappy.parquet");
     ScanParam param;
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_orderkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_partkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_suppkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_linenumber"});
-    param.case_sensitive = false;
-//    param.skip_row_groups.insert(0);   // 3351607
-//    param.skip_row_groups.insert(1);   // 3351607
-//    param.skip_row_groups.insert(2);   // 3351607
-//    param.skip_row_groups.insert(3);   // 3351607
-//    param.skip_row_groups.insert(4);   // 3347771
-//    param.skip_row_groups.insert(5);   // 3241150
+    param.header.insert({int64_type, "l_orderkey"});
+    param.header.insert({int64_type, "l_partkey"});
+    param.header.insert({int64_type, "l_suppkey"});
+    param.header.insert({int64_type, "l_linenumber"});
+    param.header.insert({string_type, "l_comment"});
+    param.header.insert({string_type, "l_shipmode"});
+    param.header.insert({string_type, "l_returnflag"});
+    param.header.insert({string_type, "l_linestatus"});
 
-    auto reader = std::make_shared<ParquetFileReader>(file, param);
+    param.case_sensitive = false;
+    //    param.skip_row_groups.insert(0);   // 3351607
+    //    param.skip_row_groups.insert(1);   // 3351607
+    //    param.skip_row_groups.insert(2);   // 3351607
+    //    param.skip_row_groups.insert(3);   // 3351607
+    //    param.skip_row_groups.insert(4);   // 3347771
+    //    param.skip_row_groups.insert(5);   // 3241150
+
+    auto reader = std::make_shared<ParquetFileReader>(file, param, 8192);
     reader->init();
     size_t count = 0;
     while (true)
@@ -33,8 +47,19 @@ TEST(Parquet, load_meta_data)
         if (chunk.getNumRows() == 0)
             break;
         count += chunk.getNumRows();
+        if (count < 10000)
+        {
+            for (size_t i = 0; i < chunk.getNumRows(); ++i)
+            {
+                for (size_t j = 0; j < chunk.getNumColumns(); ++j)
+                {
+                    std::cerr << chunk.getColumns().at(j)->getDataAt(i).data << '\t';
+                }
+                std::cerr << std::endl;
+            }
+        }
     }
-    ASSERT_EQ(count, 19995349);
+    ASSERT_EQ(count, 6667105);
 }
 
 int main(int argc, char ** argv)

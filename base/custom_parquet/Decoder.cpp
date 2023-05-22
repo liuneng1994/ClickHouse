@@ -24,9 +24,9 @@ void LevelDecoder::parse(parquet::format::Encoding::type encoding_, size_t max_l
             chassert(slice->size >= 4);
 
             auto * data = slice->data;
-            size_t num_bytes = decode_fixed32_le(reinterpret_cast<uint8_t *>(data));
+            size_t num_bytes = decode_fixed32_le(data);
             chassert(num_bytes <= slice->size - 4);
-            rle_decoder = std::make_shared<RleDecoder<size_t>>(data + 4, (int)num_bytes, (int)bit_width);
+            rle_decoder = std::make_shared<RleDecoder<level_t>>(data + 4, (int)num_bytes, (int)bit_width);
 
             slice->data += 4 + num_bytes;
             slice->size -= 4 + num_bytes;
@@ -36,7 +36,7 @@ void LevelDecoder::parse(parquet::format::Encoding::type encoding_, size_t max_l
             throw Exception(ErrorCodes::LOGICAL_ERROR, "not supported encoding");
     }
 }
-size_t LevelDecoder::decode_batch(size_t n, size_t * levels)
+size_t LevelDecoder::decode_batch(size_t n, level_t * levels)
 {
     if (encoding == parquet::format::Encoding::RLE)
     {
@@ -76,10 +76,9 @@ struct TypeEncodingTraits<type, parquet::format::Encoding::PLAIN>
 
 
 template <parquet::format::Type::type type>
-struct TypeEncodingTraits<type, parquet::format::Encoding::RLE_DICTIONARY> {
-    static std::unique_ptr<Decoder> create_decoder() {
-        return std::make_unique<DictDecoder<typename PhysicalTypeTraits<type>::CppType>>();
-    }
+struct TypeEncodingTraits<type, parquet::format::Encoding::RLE_DICTIONARY>
+{
+    static std::unique_ptr<Decoder> create_decoder() { return std::make_unique<DictDecoder<typename PhysicalTypeTraits<type>::CppType>>(); }
 };
 
 
@@ -144,7 +143,7 @@ EncodingInfoResolver::EncodingInfoResolver()
     add_map<parquet::format::Type::INT64, parquet::format::Encoding::RLE_DICTIONARY>();
 
     // INT96
-//    add_map<parquet::format::Type::INT96, parquet::format::Encoding::PLAIN>();
+    //    add_map<parquet::format::Type::INT96, parquet::format::Encoding::PLAIN>();
     //    add_map<parquet::format::Type::INT96, parquet::format::Encoding::RLE_DICTIONARY>();
 
     // FLOAT
@@ -156,8 +155,8 @@ EncodingInfoResolver::EncodingInfoResolver()
     add_map<parquet::format::Type::DOUBLE, parquet::format::Encoding::RLE_DICTIONARY>();
 
     // BYTE_ARRAY encoding
-    //    add_map<parquet::format::Type::BYTE_ARRAY, parquet::format::Encoding::PLAIN>();
-    //    add_map<parquet::format::Type::BYTE_ARRAY, parquet::format::Encoding::RLE_DICTIONARY>();
+    add_map<parquet::format::Type::BYTE_ARRAY, parquet::format::Encoding::PLAIN>();
+    add_map<parquet::format::Type::BYTE_ARRAY, parquet::format::Encoding::RLE_DICTIONARY>();
 
     // FIXED_LEN_BYTE_ARRAY encoding
     //    add_map<parquet::format::Type::FIXED_LEN_BYTE_ARRAY, parquet::format::Encoding::PLAIN>();
