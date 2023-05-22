@@ -1,5 +1,8 @@
+#include <filesystem>
 #include <iostream>
+#include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeNullable.h>
 #include <IO/ReadBufferFromFile.h>
 #include <Processors/Executors/PullingPipelineExecutor.h>
 #include <Processors/Formats/Impl/ParquetBlockInputFormat.h>
@@ -9,86 +12,124 @@
 
 using namespace DB;
 
+const String file_path = "/home/admin1/data/tpch100/parquet/lineitem/part-00000-066b93b4-39e1-4d46-83ab-d7752096b599-c000.snappy.parquet";
+const String data_path = "/home/admin1/data/tpch-velox/lineitem/";
 
-class ParquetFixture : public ::benchmark::Fixture
+DataTypePtr string_type = makeNullable(std::make_shared<DataTypeString>());
+DataTypePtr int64_type = makeNullable(std::make_shared<DataTypeInt64>());
+DataTypePtr double_type = makeNullable(std::make_shared<DataTypeFloat64>());
+
+//DataTypePtr string_type = std::make_shared<DataTypeString>();
+//DataTypePtr int64_type = std::make_shared<DataTypeInt64>();
+//DataTypePtr double_type = std::make_shared<DataTypeFloat64>();
+
+void testCustomParquet(int chunk_size)
 {
-public:
-    void SetUp(const ::benchmark::State &) { }
-
-    ~ParquetFixture() { }
-};
-
-const String file_path = "/home/saber/dev/data/tpch/parquet/lineitem/part-00000-f83d0a59-2bff-41bc-acde-911002bf1b33-c000.snappy.parquet";
-
-void testCustomParquet()
-{
-    auto file = std::make_shared<ReadBufferFromFile>(
-        file_path);
-    ScanParam param;
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_orderkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_partkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_suppkey"});
-    param.header.insert({std::make_shared<DataTypeInt64>(), "l_linenumber"});
-    param.header.insert({std::make_shared<DataTypeFloat64>(), "l_quantity"});
-    param.header.insert({std::make_shared<DataTypeFloat64>(), "l_extendedprice"});
-    param.header.insert({std::make_shared<DataTypeFloat64>(), "l_discount"});
-    param.case_sensitive = false;
-    auto reader = std::make_shared<ParquetFileReader>(file, param);
-    reader->init();
-    [[maybe_unused]] size_t count = 0;
-    while (true)
+    for (const auto & entry : fs::directory_iterator(data_path))
     {
-        auto chunk = reader->getNext();
-        if (chunk.getNumRows() == 0)
-            break;
-        count += chunk.getNumRows();
+        if (entry.path().extension() != ".parquet")
+            continue;
+        auto file = std::make_shared<ReadBufferFromFile>(entry.path());
+        ScanParam param;
+        param.header.insert({int64_type, "l_orderkey"});
+        param.header.insert({int64_type, "l_partkey"});
+        param.header.insert({int64_type, "l_suppkey"});
+        param.header.insert({int64_type, "l_linenumber"});
+        param.header.insert({double_type, "l_quantity"});
+        param.header.insert({double_type, "l_extendedprice"});
+        param.header.insert({double_type, "l_discount"});
+        param.header.insert({string_type, "l_comment"});
+        param.header.insert({string_type, "l_shipmode"});
+        param.header.insert({string_type, "l_returnflag"});
+        param.header.insert({string_type, "l_linestatus"});
+        param.case_sensitive = false;
+        auto reader = std::make_shared<ParquetFileReader>(file, param, chunk_size);
+        reader->init();
+        [[maybe_unused]] size_t count = 0;
+        while (true)
+        {
+            auto chunk = reader->getNext();
+            if (chunk.getNumRows() == 0)
+                break;
+            count += chunk.getNumRows();
+        }
     }
 }
 
-void testCommunityParquet()
+void testCommunityParquet(int chunk_size)
 {
-    auto file = std::make_shared<ReadBufferFromFile>(
-        file_path);
-    Block header;
-    header.insert({std::make_shared<DataTypeInt64>(), "l_orderkey"});
-    header.insert({std::make_shared<DataTypeInt64>(), "l_partkey"});
-    header.insert({std::make_shared<DataTypeInt64>(), "l_suppkey"});
-    header.insert({std::make_shared<DataTypeInt64>(), "l_linenumber"});
-    header.insert({std::make_shared<DataTypeFloat64>(), "l_quantity"});
-    header.insert({std::make_shared<DataTypeFloat64>(), "l_extendedprice"});
-    header.insert({std::make_shared<DataTypeFloat64>(), "l_discount"});
-    FormatSettings settings;
-    auto input_format = std::make_shared<ParquetBlockInputFormat>(file.get(), nullptr, header, settings, 1, 8192);
-    QueryPipelineBuilder builder;
-    builder.init(Pipe(input_format));
-    auto pipeline = QueryPipelineBuilder::getPipeline(std::move(builder));
-    auto executor = std::make_shared<PullingPipelineExecutor>(pipeline);
-    Chunk chunk;
-    [[maybe_unused]] size_t count = 0;
-    while (executor->pull(chunk))
+    for (const auto & entry : fs::directory_iterator(data_path))
     {
-        count += chunk.getNumRows();
+        if (entry.path().extension() != ".parquet")
+            continue;
+        auto file = std::make_shared<ReadBufferFromFile>(entry.path());
+        Block header;
+        header.insert({int64_type, "l_orderkey"});
+        header.insert({int64_type, "l_partkey"});
+        header.insert({int64_type, "l_suppkey"});
+        header.insert({int64_type, "l_linenumber"});
+        header.insert({double_type, "l_quantity"});
+        header.insert({double_type, "l_extendedprice"});
+        header.insert({double_type, "l_discount"});
+        header.insert({string_type, "l_comment"});
+        header.insert({string_type, "l_shipmode"});
+        header.insert({string_type, "l_returnflag"});
+        header.insert({string_type, "l_linestatus"});
+
+        FormatSettings settings;
+        auto input_format = std::make_shared<ParquetBlockInputFormat>(file.get(), nullptr, header, settings, 1, chunk_size);
+        QueryPipelineBuilder builder;
+        builder.init(Pipe(input_format));
+        auto pipeline = QueryPipelineBuilder::getPipeline(std::move(builder));
+        auto executor = std::make_shared<PullingPipelineExecutor>(pipeline);
+        Chunk chunk;
+        [[maybe_unused]] size_t count = 0;
+        while (executor->pull(chunk))
+        {
+            count += chunk.getNumRows();
+        }
     }
 }
 
 
-BENCHMARK_F(ParquetFixture, BM_CustomParquet)(benchmark::State & state)
+void BM_CustomParquet(benchmark::State & state)
 {
     for (auto _ : state)
     {
-        testCustomParquet();
+        testCustomParquet(state.range(0));
     }
 }
-//BENCHMARK_F(ParquetFixture, BM_CommunityParquet)(benchmark::State & state)
-//{
-//    for (auto _ : state)
-//    {
-//        testCommunityParquet();
-//    }
-//}
+void BM_CommunityParquet(benchmark::State & state)
+{
+    for (auto _ : state)
+    {
+        testCommunityParquet(state.range(0));
+    }
+}
 
-BENCHMARK_REGISTER_F(ParquetFixture, BM_CustomParquet)->Unit(benchmark::TimeUnit::kMillisecond)->Iterations(20);
-//BENCHMARK_REGISTER_F(ParquetFixture, BM_CommunityParquet)->Unit(benchmark::TimeUnit::kMillisecond)->Iterations(20);
+BENCHMARK(BM_CustomParquet)
+//    ->Arg(2048)
+//    ->Arg(4096)
+    ->Arg(8192)
+//    ->Arg(8192 * 2)
+//    ->Arg(8192 * 3)
+//    ->Arg(8192 * 4)
+    ->MinWarmUpTime(2)
+    ->MinTime(20)
+    //    ->Threads(8)
+    ->Unit(benchmark::TimeUnit::kMillisecond);
+
+BENCHMARK(BM_CommunityParquet)
+//    ->Arg(2048)
+//    ->Arg(4096)
+    ->Arg(8192)
+//    ->Arg(8192 * 2)
+//    ->Arg(8192 * 3)
+//    ->Arg(8192 * 4)
+    ->MinWarmUpTime(2)
+    ->MinTime(20)
+    //    ->Threads(8)
+    ->Unit(benchmark::TimeUnit::kMillisecond);
 
 
 // Run the benchmark

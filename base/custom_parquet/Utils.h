@@ -23,7 +23,7 @@ class EndOfFile : public Exception {};
 CompressionMethod getCompressionMethod(parquet::format::CompressionCodec::type codec);
 
 
-inline uint32_t decode_fixed32_le(const uint8_t * buf)
+inline uint32_t decode_fixed32_le(const char * buf)
 {
     uint32_t res;
     memcpy(&res, buf, sizeof(res));
