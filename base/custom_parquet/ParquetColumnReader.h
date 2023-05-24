@@ -66,7 +66,7 @@ public:
 
     void get_levels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) override
     {
-        reader->get_levels(def_levels, rep_levels, num_levels);
+        reader->getLevels(def_levels, rep_levels, num_levels);
     }
 
 private:

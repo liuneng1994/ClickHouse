@@ -82,10 +82,10 @@ void ParquetFileReader::prepareReadColumns()
     size_t col_idx = 0;
     for (const auto & column : param.header.getColumnsWithTypeAndName())
     {
-        size_t field_index = metadata.schema().get_column_index(column.name, param.case_sensitive);
+        size_t field_index = metadata.schema().getColumnIndex(column.name, param.case_sensitive);
 
         auto parquet_type = metadata.schema().getStoredColumnByIdx(field_index)->physical_type;
-        metadata.schema_._fields[field_index].type = column.type;
+        metadata.schema_.fields[field_index].type = column.type;
         ParquetGroupReaderParam::Column read_col{};
         read_col.col_idx_in_parquet = field_index;
         read_col.col_type_in_parquet = parquet_type;

@@ -15,7 +15,6 @@ add_library(
         ParquetColumnReader.cpp
         ParquetColumnReader.h
         Utils.h
-        Utils.cpp
         StoredColumnReader.cpp
         StoredColumnReader.h
         bit_packing.h
@@ -24,7 +23,7 @@ add_library(
         schema.cpp
         metadata.cpp
         metadata.h
-        param.h bit_util.cpp bit_util.h)
+        param.h bit_util.cpp bit_util.h CompressCodec.cpp CompressCodec.h)
 
 target_include_directories(parquet PUBLIC
         ${ClickHouse_SOURCE_DIR}/contrib/arrow/cpp/src/

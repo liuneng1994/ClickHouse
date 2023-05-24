@@ -1,5 +1,4 @@
 #pragma once
-#include <IO/CompressionMethod.h>
 #include <Common/Exception.h>
 #include <Common/PODArray.h>
 #include <Common/PODArray_fwd.h>
@@ -7,10 +6,7 @@
 
 namespace DB
 {
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-}
+
 
 struct Slice
 {
@@ -19,8 +15,6 @@ struct Slice
 };
 
 class EndOfFile : public Exception {};
-
-CompressionMethod getCompressionMethod(parquet::format::CompressionCodec::type codec);
 
 
 inline uint32_t decode_fixed32_le(const char * buf)

@@ -10,9 +10,9 @@ struct LevelInfo {
 
     int16_t immediate_repeated_ancestor_def_level = 0;
 
-    bool is_nullable() const { return max_def_level > immediate_repeated_ancestor_def_level; }
+    bool isNullable() const { return max_def_level > immediate_repeated_ancestor_def_level; }
 
-    int16_t increment_repeated() {
+    int16_t incrementRepeated() {
         auto origin_ancestor_rep_levels = immediate_repeated_ancestor_def_level;
         max_def_level++;
         max_rep_level++;
@@ -20,7 +20,7 @@ struct LevelInfo {
         return origin_ancestor_rep_levels;
     }
 
-    std::string debug_string() const;
+    std::string debugString() const;
 };
 
 struct ParquetField {
@@ -46,10 +46,10 @@ struct ParquetField {
     LevelInfo level_info;
     std::vector<ParquetField> children;
 
-    int16_t max_def_level() const { return level_info.max_def_level; }
-    int16_t max_rep_level() const { return level_info.max_rep_level; }
+    int16_t maxDefLevel() const { return level_info.max_def_level; }
+    int16_t maxRepLevel() const { return level_info.max_rep_level; }
 
-    std::string debug_string() const;
+    std::string debugString() const;
 };
 
 
@@ -60,25 +60,26 @@ public:
     Schema() = default;
     ~Schema() = default;
 
-    void from_thrift(const std::vector<parquet::format::SchemaElement>& t_schemas);
+    void fromThrift(const std::vector<parquet::format::SchemaElement>& t_schemas);
 
-    std::string debug_string() const;
+    std::string debugString() const;
 
-    size_t get_column_index(const std::string& column, bool case_sensitive) const;
-    const ParquetField* getStoredColumnByIdx(size_t idx) const { return &_fields[idx]; }
+    size_t getColumnIndex(const std::string& column, bool case_sensitive) const;
+    const ParquetField* getStoredColumnByIdx(size_t idx) const { return &fields[idx]; }
 
     const ParquetField* resolveByName(const std::string& name) const {
-        auto it = _field_by_name.find(name);
-        if (it != _field_by_name.end()) {
+        auto it = field_by_name.find(name);
+        if (it != field_by_name.end()) {
             return it->second;
         }
         return nullptr;
     }
 
-    void get_field_names(std::unordered_set<std::string>& names, bool case_sensitive) const;
+    void getFieldNames(std::unordered_set<std::string>& names, bool case_sensitive) const;
 
 private:
-    void leaf_to_field(const parquet::format::SchemaElement& t_schema, const LevelInfo& cur_level_info, bool is_nullable,
+    void
+    leafToField(const parquet::format::SchemaElement& t_schema, const LevelInfo& cur_level_info, bool is_nullable,
                        ParquetField* field);
 
 //    Status list_to_field(const std::vector<tparquet::SchemaElement>& t_schemas, size_t pos, LevelInfo cur_level_info,
@@ -93,13 +94,13 @@ private:
 //    Status group_to_field(const std::vector<tparquet::SchemaElement>& t_schemas, size_t pos, LevelInfo cur_level_info,
 //                          ParquetField* field, size_t* next_pos);
 //
-    void node_to_field(const std::vector<parquet::format::SchemaElement>& schemas, size_t pos, LevelInfo cur_level_info,
+    void nodeToField(const std::vector<parquet::format::SchemaElement>& schemas, size_t pos, LevelInfo cur_level_info,
                          ParquetField* field, size_t* next_pos);
 
-    std::vector<ParquetField> _fields;
-    std::vector<ParquetField*> _physical_fields;
+    std::vector<ParquetField> fields;
+    std::vector<ParquetField*> physical_fields;
 
-    std::unordered_map<std::string, const ParquetField*> _field_by_name;
+    std::unordered_map<std::string, const ParquetField*> field_by_name;
 };
 
 

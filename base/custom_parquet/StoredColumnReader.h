@@ -25,7 +25,7 @@ public:
 
     virtual size_t readRecords(size_t num_rows, MutableColumnPtr & dst) = 0;
 
-    virtual void get_levels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) = 0;
+    virtual void getLevels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) = 0;
 
 protected:
     size_t next_page();
@@ -49,7 +49,7 @@ public:
 
     size_t readRecords(size_t num_rows, MutableColumnPtr & dst) override;
 
-    void get_levels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) override
+    void getLevels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) override
     {
         *def_levels = nullptr;
         *rep_levels = nullptr;
@@ -82,7 +82,7 @@ public:
 
 //    void set_needs_levels(bool needs_levels) override { _needs_levels = needs_levels; }
 
-    void get_levels(level_t** def_levels_, level_t** rep_levels, size_t* num_levels) override {
+    void getLevels(level_t** def_levels_, level_t** rep_levels, size_t* num_levels) override {
         // _needs_levels must be true
 //        DCHECK(_needs_levels);
 

@@ -216,9 +216,9 @@ public:
     // initialize dictionary
     void setDict(size_t chunk_size, size_t num_values, Decoder & decoder) override
     {
-        _dict.resize(num_values);
-        _indexes.resize(chunk_size);
-        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(_dict.data()));
+        dict.resize(num_values);
+        indexes.resize(chunk_size);
+        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(dict.data()));
     }
 
     void setData(const Slice & data) override
@@ -226,7 +226,7 @@ public:
         if (data.size > 0)
         {
             uint8_t bit_width = *data.data;
-            _index_batch_decoder
+            indexBatchDecoder
                 = RleBatchDecoder<uint32_t>(reinterpret_cast<uint8_t *>(data.data) + 1, static_cast<int>(data.size) - 1, bit_width);
         }
         else
@@ -238,8 +238,8 @@ public:
     void nextBatch(size_t count, MutableColumnPtr & dst) override
     {
         dst->reserve(count);
-        _indexes.reserve(count);
-        _index_batch_decoder.GetBatch(_indexes.data(), static_cast<int32_t>(count));
+        indexes.reserve(count);
+        indexBatchDecoder.GetBatch(indexes.data(), static_cast<int32_t>(count));
 
         if (dst->isNullable())
         {
@@ -248,7 +248,7 @@ public:
             auto & column_data = static_cast<ColumnVector<T> &>(nullable_col.getNestedColumn());
             for (size_t i = 0; i < count; i++)
             {
-                column_data.getData().push_back(_dict[_indexes[i]]);
+                column_data.getData().push_back(dict[indexes[i]]);
             }
         }
         else
@@ -256,20 +256,15 @@ public:
             auto & column_data = static_cast<ColumnVector<T> &>(*dst);
             for (size_t i = 0; i < count; i++)
             {
-                column_data.getData().push_back(_dict[_indexes[i]]);
+                column_data.getData().push_back(dict[indexes[i]]);
             }
         }
     }
 
 private:
-    enum
-    {
-        SIZE_OF_TYPE = sizeof(T)
-    };
-
-    RleBatchDecoder<uint32_t> _index_batch_decoder;
-    std::vector<T> _dict;
-    std::vector<uint32_t> _indexes;
+    RleBatchDecoder<uint32_t> indexBatchDecoder;
+    std::vector<T> dict;
+    std::vector<uint32_t> indexes;
 };
 
 
@@ -373,7 +368,7 @@ public:
     template <typename TypeEncodingTraits>
     explicit EncodingInfo(TypeEncodingTraits traits);
 
-    std::unique_ptr<Decoder> create_decoder() const { return create_decoder_func(); }
+    std::unique_ptr<Decoder> createDecoder() const { return create_decoder_func(); }
 
 
     parquet::format::Type::type getType() const { return type; }

@@ -3,6 +3,7 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeDate32.h>
 #include <IO/ReadBufferFromFile.h>
 #include <Processors/Executors/PullingPipelineExecutor.h>
 #include <Processors/Formats/Impl/ParquetBlockInputFormat.h>
@@ -12,12 +13,13 @@
 
 using namespace DB;
 
-const String file_path = "/home/admin1/data/tpch100/parquet/lineitem/part-00000-066b93b4-39e1-4d46-83ab-d7752096b599-c000.snappy.parquet";
 const String data_path = "/home/admin1/data/tpch-velox/lineitem/";
 
 DataTypePtr string_type = makeNullable(std::make_shared<DataTypeString>());
 DataTypePtr int64_type = makeNullable(std::make_shared<DataTypeInt64>());
 DataTypePtr double_type = makeNullable(std::make_shared<DataTypeFloat64>());
+DataTypePtr date_type = makeNullable(std::make_shared<DataTypeDate32>());
+
 
 //DataTypePtr string_type = std::make_shared<DataTypeString>();
 //DataTypePtr int64_type = std::make_shared<DataTypeInt64>();
@@ -38,10 +40,16 @@ void testCustomParquet(int chunk_size)
         param.header.insert({double_type, "l_quantity"});
         param.header.insert({double_type, "l_extendedprice"});
         param.header.insert({double_type, "l_discount"});
-        param.header.insert({string_type, "l_comment"});
-        param.header.insert({string_type, "l_shipmode"});
+        param.header.insert({double_type, "l_tax"});
         param.header.insert({string_type, "l_returnflag"});
         param.header.insert({string_type, "l_linestatus"});
+        param.header.insert({date_type, "l_shipdate"});
+        param.header.insert({date_type, "l_commitdate"});
+        param.header.insert({date_type, "l_receiptdate"});
+        param.header.insert({string_type, "l_shipinstruct"});
+        param.header.insert({string_type, "l_shipmode"});
+        param.header.insert({string_type, "l_comment"});
+
         param.case_sensitive = false;
         auto reader = std::make_shared<ParquetFileReader>(file, param, chunk_size);
         reader->init();
@@ -71,10 +79,15 @@ void testCommunityParquet(int chunk_size)
         header.insert({double_type, "l_quantity"});
         header.insert({double_type, "l_extendedprice"});
         header.insert({double_type, "l_discount"});
-        header.insert({string_type, "l_comment"});
-        header.insert({string_type, "l_shipmode"});
+        header.insert({double_type, "l_tax"});
         header.insert({string_type, "l_returnflag"});
         header.insert({string_type, "l_linestatus"});
+        header.insert({date_type, "l_shipdate"});
+        header.insert({date_type, "l_commitdate"});
+        header.insert({date_type, "l_receiptdate"});
+        header.insert({string_type, "l_shipinstruct"});
+        header.insert({string_type, "l_shipmode"});
+        header.insert({string_type, "l_comment"});
 
         FormatSettings settings;
         auto input_format = std::make_shared<ParquetBlockInputFormat>(file.get(), nullptr, header, settings, 1, chunk_size);
@@ -111,9 +124,9 @@ BENCHMARK(BM_CustomParquet)
 //    ->Arg(2048)
 //    ->Arg(4096)
     ->Arg(8192)
-//    ->Arg(8192 * 2)
-//    ->Arg(8192 * 3)
-//    ->Arg(8192 * 4)
+    ->Arg(8192 * 2)
+    ->Arg(8192 * 3)
+    ->Arg(8192 * 4)
     ->MinWarmUpTime(2)
     ->MinTime(20)
     //    ->Threads(8)
@@ -123,12 +136,12 @@ BENCHMARK(BM_CommunityParquet)
 //    ->Arg(2048)
 //    ->Arg(4096)
     ->Arg(8192)
-//    ->Arg(8192 * 2)
-//    ->Arg(8192 * 3)
-//    ->Arg(8192 * 4)
+    ->Arg(8192 * 2)
+    ->Arg(8192 * 3)
+    ->Arg(8192 * 4)
     ->MinWarmUpTime(2)
     ->MinTime(20)
-    //    ->Threads(8)
+//        ->Threads(8)
     ->Unit(benchmark::TimeUnit::kMillisecond);
 
 
