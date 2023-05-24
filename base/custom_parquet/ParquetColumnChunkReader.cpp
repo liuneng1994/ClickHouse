@@ -32,7 +32,7 @@ void ParquetColumnChunkReader::init(size_t chunk_size_) {
         start_offset = metadata().data_page_offset;
     }
     size_t size = metadata().total_compressed_size;
-    SeekableReadBufferPtr stream = opts.stream;
+    SeekableReadBuffer * stream = opts.stream;
     if (!stream) {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "stream is missing");
     }

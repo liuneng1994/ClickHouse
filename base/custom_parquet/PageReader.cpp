@@ -13,7 +13,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
-PageReader::PageReader(SeekableReadBufferPtr stream_, size_t start_, size_t length_) : stream(stream_), finish_offset(start_ + length_)
+PageReader::PageReader(SeekableReadBuffer * stream_, size_t start_, size_t length_) : stream(stream_), finish_offset(start_ + length_)
 {
 }
 void PageReader::nextHeader()

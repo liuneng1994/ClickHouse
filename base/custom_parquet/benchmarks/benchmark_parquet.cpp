@@ -51,7 +51,7 @@ void testCustomParquet(int chunk_size)
         param.header.insert({string_type, "l_comment"});
 
         param.case_sensitive = false;
-        auto reader = std::make_shared<ParquetFileReader>(file, param, chunk_size);
+        auto reader = std::make_shared<ParquetFileReader>(file.get(), param, chunk_size);
         reader->init();
         [[maybe_unused]] size_t count = 0;
         while (true)
@@ -124,25 +124,25 @@ BENCHMARK(BM_CustomParquet)
 //    ->Arg(2048)
 //    ->Arg(4096)
     ->Arg(8192)
-    ->Arg(8192 * 2)
-    ->Arg(8192 * 3)
-    ->Arg(8192 * 4)
+//    ->Arg(8192 * 2)
+//    ->Arg(8192 * 3)
+//    ->Arg(8192 * 4)
     ->MinWarmUpTime(2)
     ->MinTime(20)
     //    ->Threads(8)
     ->Unit(benchmark::TimeUnit::kMillisecond);
-
-BENCHMARK(BM_CommunityParquet)
-//    ->Arg(2048)
-//    ->Arg(4096)
-    ->Arg(8192)
-    ->Arg(8192 * 2)
-    ->Arg(8192 * 3)
-    ->Arg(8192 * 4)
-    ->MinWarmUpTime(2)
-    ->MinTime(20)
-//        ->Threads(8)
-    ->Unit(benchmark::TimeUnit::kMillisecond);
+//
+//BENCHMARK(BM_CommunityParquet)
+////    ->Arg(2048)
+////    ->Arg(4096)
+//    ->Arg(8192)
+//    ->Arg(8192 * 2)
+//    ->Arg(8192 * 3)
+//    ->Arg(8192 * 4)
+//    ->MinWarmUpTime(2)
+//    ->MinTime(20)
+////        ->Threads(8)
+//    ->Unit(benchmark::TimeUnit::kMillisecond);
 
 
 // Run the benchmark
