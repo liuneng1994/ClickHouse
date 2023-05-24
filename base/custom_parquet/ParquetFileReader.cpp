@@ -29,13 +29,13 @@ void check(bool condition, String msg)
     }
 }
 
-ParquetFileReader::ParquetFileReader(const std::shared_ptr<ReadBufferFromFileBase> file_, ScanParam param_, size_t chunk_size_)
+ParquetFileReader::ParquetFileReader(ReadBufferFromFileBase* file_, ScanParam param_, size_t chunk_size_)
     : file(file_), chunk_size(chunk_size_), param(param_)
 {
     file_length = file->getFileSize();
 }
 
-std::unique_ptr<apache::thrift::protocol::TProtocol> createThriftProtocol(std::shared_ptr<ReadBufferFromFileBase> file)
+std::unique_ptr<apache::thrift::protocol::TProtocol> createThriftProtocol(ReadBufferFromFileBase* file)
 {
     auto transport = std::make_shared<ThriftFileTransport>(file);
     return std::make_unique<apache::thrift::protocol::TCompactProtocolT<ThriftFileTransport>>(transport);

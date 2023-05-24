@@ -139,7 +139,7 @@ size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableCo
                 size_t new_capacity = records_to_read;
                 if (new_capacity > levels_capacity)
                 {
-                    def_levels.reserve(new_capacity);
+                    def_levels.resize(new_capacity);
 
                     levels_capacity = new_capacity;
                 }

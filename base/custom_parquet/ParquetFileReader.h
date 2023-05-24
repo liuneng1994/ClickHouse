@@ -1,8 +1,9 @@
 #pragma once
+#include <unordered_set>
 #include <Core/Block.h>
-#include <Processors/Chunk.h>
 #include <DataTypes/DataTypeNested.h>
 #include <IO/ReadBufferFromFileBase.h>
+#include <Processors/Chunk.h>
 #include "metadata.h"
 #include "param.h"
 
@@ -26,14 +27,14 @@ struct ParquetGroupReaderParam;
 struct ScanParam
 {
     Block header;
-    std::set<size_t> skip_row_groups;
+    std::unordered_set<int> skip_row_groups;
     bool case_sensitive = false;
 };
 
 class ParquetFileReader
 {
 public:
-    ParquetFileReader(std::shared_ptr<ReadBufferFromFileBase> file, ScanParam context, size_t chunk_size = 8192);
+    ParquetFileReader(ReadBufferFromFileBase * file, ScanParam context, size_t chunk_size = 8192);
     void init();
     Chunk getNext();
 
@@ -44,7 +45,7 @@ private:
     void initGroupReaders();
 
 
-    std::shared_ptr<ReadBufferFromFileBase> file;
+    ReadBufferFromFileBase * file;
     size_t file_length;
     FileMetaData metadata;
     std::vector<std::shared_ptr<ParquetGroupReader>> row_group_readers;

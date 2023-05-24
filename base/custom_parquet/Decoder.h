@@ -158,7 +158,7 @@ public:
     {
         chassert(count + row_offset <= size_list.size());
         size_t total_size = count;
-        for (size_t i = row_offset; i < row_offset; i++)
+        for (size_t i = row_offset; i < row_offset + count; i++)
         {
             total_size += size_list[i];
         }
@@ -187,8 +187,9 @@ private:
         PaddedPODArray<UInt8> & column_chars_t = col.getChars();
         PaddedPODArray<UInt64> & column_offsets = col.getOffsets();
 
-        column_chars_t.reserve(column_chars_t.size() + mem_size);
-        column_offsets.reserve(column_offsets.size() + row_count);
+        auto initial_size = column_chars_t.size();
+        column_chars_t.reserve(initial_size + mem_size);
+        column_offsets.reserve(initial_size + row_count);
 
         for (size_t i = 0; i < row_count; ++i)
         {
@@ -196,8 +197,9 @@ private:
             column_chars_t.insert_assume_reserved(raw_data, raw_data + size_list[row_offset + i]);
             column_chars_t.emplace_back('\0');
             column_offsets.emplace_back(column_chars_t.size());
-            offset = offset + size_list[i] + sizeof(uint32_t);
+            offset = offset + size_list[row_offset + i] + sizeof(uint32_t);
         }
+        chassert(initial_size + mem_size == column_offsets.back());
     }
 
     Slice data;
@@ -248,7 +250,7 @@ public:
             auto & column_data = static_cast<ColumnVector<T> &>(nullable_col.getNestedColumn());
             for (size_t i = 0; i < count; i++)
             {
-                column_data.getData().push_back(dict[indexes[i]]);
+                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
             }
         }
         else
@@ -256,7 +258,7 @@ public:
             auto & column_data = static_cast<ColumnVector<T> &>(*dst);
             for (size_t i = 0; i < count; i++)
             {
-                column_data.getData().push_back(dict[indexes[i]]);
+                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
             }
         }
     }

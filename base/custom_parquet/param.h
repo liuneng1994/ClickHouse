@@ -18,7 +18,7 @@ struct ColumnReaderOptions
     std::string timezone;
     bool case_sensitive = false;
     size_t chunk_size = 0;
-    SeekableReadBufferPtr stream = nullptr;
+    SeekableReadBuffer * stream = nullptr;
     parquet::format::RowGroup * row_group_meta = nullptr;
     ColumnReaderContext * context = nullptr;
 };
@@ -41,7 +41,7 @@ struct ParquetGroupReaderParam {
 
     FileMetaData* file_metadata = nullptr;
 
-    SeekableReadBufferPtr file_read_buffer;
+    SeekableReadBuffer * file_read_buffer;
 
     bool case_sensitive = false;
 };

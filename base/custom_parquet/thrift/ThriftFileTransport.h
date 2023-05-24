@@ -8,7 +8,7 @@ namespace DB
 class ThriftFileTransport : public apache::thrift::transport::TVirtualTransport<ThriftFileTransport>
 {
 public:
-    ThriftFileTransport(const std::shared_ptr<ReadBufferFromFileBase> & file_)
+    ThriftFileTransport(ReadBufferFromFileBase * file_)
         : file(file_), location(0){
     }
 
@@ -25,7 +25,7 @@ public:
     }
 
 private:
-    std::shared_ptr<ReadBufferFromFileBase> file;
+    ReadBufferFromFileBase * file;
     size_t location;
 };
 }
