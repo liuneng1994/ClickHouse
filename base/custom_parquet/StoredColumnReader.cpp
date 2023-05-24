@@ -45,18 +45,18 @@ size_t RequiredStoredColumnReader::readRecords(size_t num_rows, MutableColumnPtr
 void RequiredStoredColumnReader::init(const ParquetField * field_, const parquet::format::ColumnChunk * chunk_metadata_)
 {
     field = field_;
-    reader = std::make_shared<ParquetColumnChunkReader>(field->max_def_level(), field->max_rep_level(), chunk_metadata_, opts);
+    reader = std::make_shared<ParquetColumnChunkReader>(field->maxDefLevel(), field->maxRepLevel(), chunk_metadata_, opts);
     reader->init(opts.chunk_size);
 }
 
 std::unique_ptr<StoredColumnReader> StoredColumnReader::create(
     const ColumnReaderOptions & opts, const ParquetField * field, const parquet::format::ColumnChunk * chunk_metadata)
 {
-    if (field->max_rep_level() > 0)
+    if (field->maxRepLevel() > 0)
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "RepeatedStoredColumnReader not supported");
     }
-    else if (field->max_def_level() > 0)
+    else if (field->maxDefLevel() > 0)
     {
         auto reader = std::make_unique<OptionalStoredColumnReader>(opts);
         reader->init(field, chunk_metadata);
@@ -89,7 +89,7 @@ size_t StoredColumnReader::next_page()
 void OptionalStoredColumnReader::init(const ParquetField * field, const parquet::format::ColumnChunk * chunk_metadata)
 {
     _field = field;
-    reader = std::make_shared<ParquetColumnChunkReader>(_field->max_def_level(), _field->max_rep_level(), chunk_metadata, opts);
+    reader = std::make_shared<ParquetColumnChunkReader>(_field->maxDefLevel(), _field->maxRepLevel(), chunk_metadata, opts);
     reader->init(opts.chunk_size);
 }
 size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableColumnPtr & dst)
@@ -124,7 +124,7 @@ size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableCo
             records_to_read = std::min(records_to_read, repeated_count);
             level_t def_level = 0;
             def_level = reader->getDefLevelDecoder().get_repeated_value(records_to_read);
-            if (def_level >= _field->max_def_level())
+            if (def_level >= _field->maxDefLevel())
             {
                 reader->decode_values(records_to_read, dst);
             }
@@ -150,9 +150,9 @@ size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableCo
             while (i < records_to_read)
             {
                 size_t j = i;
-                bool is_null = def_levels[j] < _field->max_def_level();
+                bool is_null = def_levels[j] < _field->maxDefLevel();
                 j++;
-                while (j < records_to_read && is_null == (def_levels[j] < _field->max_def_level()))
+                while (j < records_to_read && is_null == (def_levels[j] < _field->maxDefLevel()))
                 {
                     j++;
                 }

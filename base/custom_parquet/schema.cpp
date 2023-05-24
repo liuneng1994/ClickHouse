@@ -36,48 +36,48 @@ static bool schema_is_optional(const parquet::format::SchemaElement& schema) {
 //    return schema.__isset.num_children ? schema.num_children : 0;
 //}
 
-void Schema::from_thrift(const std::vector<parquet::format::SchemaElement> & schemas)
+void Schema::fromThrift(const std::vector<parquet::format::SchemaElement> & t_schemas)
 {
-    if (schemas.size() == 0)
+    if (t_schemas.size() == 0)
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Empty parquet Schema");
     }
-    auto & root_schema = schemas[0];
+    auto & root_schema = t_schemas[0];
     if (!is_group(root_schema))
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Root Schema is not group");
     }
-    _fields.resize(root_schema.num_children);
+    fields.resize(root_schema.num_children);
     // skip root SchemaElement
     size_t next_pos = 1;
     for (int i = 0; i < root_schema.num_children; ++i)
     {
-        node_to_field(schemas, next_pos, LevelInfo(), &_fields[i], &next_pos);
-        if (_field_by_name.find(_fields[i].name) != _field_by_name.end())
+        nodeToField(t_schemas, next_pos, LevelInfo(), &fields[i], &next_pos);
+        if (field_by_name.find(fields[i].name) != field_by_name.end())
         {
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Duplicate field name: {}", _fields[i].name);
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Duplicate field name: {}", fields[i].name);
         }
-        _field_by_name.emplace(_fields[i].name, &_fields[i]);
+        field_by_name.emplace(fields[i].name, &fields[i]);
     }
 
-    if (next_pos != schemas.size())
+    if (next_pos != t_schemas.size())
     {
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Remaining {} unparsed field", schemas.size() - next_pos);
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Remaining {} unparsed field", t_schemas.size() - next_pos);
     }
 }
 
-void Schema::get_field_names(std::unordered_set<std::string>& names, bool case_sensitive) const {
+void Schema::getFieldNames(std::unordered_set<std::string>& names, bool case_sensitive) const {
     names.clear();
-    for (const ParquetField& f : _fields) {
+    for (const ParquetField& f : fields) {
         std::string name = case_sensitive ? f.name : Poco::toLower(f.name);
         names.emplace(std::move(name));
     }
 }
 
-size_t Schema::get_column_index(const std::string& column, bool case_sensitive) const {
-    for (size_t i = 0; i < _fields.size(); i++) {
+size_t Schema::getColumnIndex(const std::string& column, bool case_sensitive) const {
+    for (size_t i = 0; i < fields.size(); i++) {
         bool found =
-            case_sensitive ? _fields[i].name == column : strcasecmp(_fields[i].name.c_str(), column.c_str()) == 0;
+            case_sensitive ? fields[i].name == column : strcasecmp(fields[i].name.c_str(), column.c_str()) == 0;
         if (found) {
             return i;
         }
@@ -85,7 +85,7 @@ size_t Schema::get_column_index(const std::string& column, bool case_sensitive) 
     throw Exception(ErrorCodes::LOGICAL_ERROR, "column {} not found in parquet", column);
 }
 
-void Schema::node_to_field(const std::vector<parquet::format::SchemaElement>& t_schemas, size_t pos,
+void Schema::nodeToField(const std::vector<parquet::format::SchemaElement>& t_schemas, size_t pos,
                                      LevelInfo cur_level_info, ParquetField* field, size_t* next_pos) {
     if (pos >= t_schemas.size()) {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Access out-of-bounds SchemaElement");
@@ -106,12 +106,12 @@ void Schema::node_to_field(const std::vector<parquet::format::SchemaElement>& t_
         if (is_optional) {
             cur_level_info.max_def_level++;
         }
-        leaf_to_field(t_schema, cur_level_info, is_optional, field);
+        leafToField(t_schema, cur_level_info, is_optional, field);
         *next_pos = pos + 1;
     }
 }
 
-void Schema::leaf_to_field(const parquet::format::SchemaElement& t_schema, const LevelInfo& cur_level_info,
+void Schema::leafToField(const parquet::format::SchemaElement& t_schema, const LevelInfo& cur_level_info,
                                      bool is_nullable, ParquetField* field) {
     field->name = t_schema.name;
     field->schema_element = t_schema;
@@ -122,28 +122,28 @@ void Schema::leaf_to_field(const parquet::format::SchemaElement& t_schema, const
     field->precision = t_schema.precision;
     field->level_info = cur_level_info;
     // TODO fied->type
-    _physical_fields.push_back(field);
-    field->physical_column_index = _physical_fields.size() - 1;
+    physical_fields.push_back(field);
+    field->physical_column_index = physical_fields.size() - 1;
 }
 
-std::string LevelInfo::debug_string() const {
+std::string LevelInfo::debugString() const {
     std::stringstream ss;
-    ss << "LevelInfo(max_def_level=" << max_def_level << ",max_rep_level=" << max_rep_level
+    ss << "LevelInfo(maxDefLevel=" << max_def_level << ",maxRepLevel=" << max_rep_level
        << ",immediate_repeated_ancestor_def_level=" << immediate_repeated_ancestor_def_level << ")";
     return ss.str();
 }
 
-std::string ParquetField::debug_string() const {
+std::string ParquetField::debugString() const {
     std::stringstream ss;
     ss << "ParquetField(name=" << name << ",type=" << type->getName() << ",physical_type=" << physical_type
-       << ",physical_column_index=" << physical_column_index << ",levels_info=" << level_info.debug_string();
+       << ",physical_column_index=" << physical_column_index << ",levels_info=" << level_info.debugString();
     if (children.size() > 0) {
         ss << ",children=[";
         for (size_t i = 0; i < children.size(); ++i) {
             if (i != 0) {
                 ss << ",";
             }
-            ss << children[i].debug_string();
+            ss << children[i].debugString();
         }
         ss << "]";
     }
@@ -152,14 +152,14 @@ std::string ParquetField::debug_string() const {
 }
 
 
-std::string Schema::debug_string() const {
+std::string Schema::debugString() const {
     std::stringstream ss;
     ss << "fields=[";
-    for (size_t i = 0; i < _fields.size(); ++i) {
+    for (size_t i = 0; i < fields.size(); ++i) {
         if (i != 0) {
             ss << ",";
         }
-        ss << _fields[i].debug_string();
+        ss << fields[i].debugString();
     }
     ss << "]";
     return ss.str();

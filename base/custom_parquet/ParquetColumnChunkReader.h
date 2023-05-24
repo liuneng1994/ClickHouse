@@ -7,6 +7,7 @@
 #include <Common/PODArray.h>
 #include <Common/PODArray_fwd.h>
 #include "Utils.h"
+#include "CompressCodec.h"
 
 
 namespace DB
@@ -109,7 +110,7 @@ private:
     const ColumnReaderOptions& opts;
     std::unique_ptr<PageReader> page_reader;
 
-    CompressionMethod compress_codec = CompressionMethod::None;
+    CompressCodecPtr compress_codec = nullptr;
 
     LevelDecoder def_level_decoder;
     LevelDecoder rep_level_decoder;

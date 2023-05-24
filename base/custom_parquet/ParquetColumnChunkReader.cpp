@@ -42,7 +42,7 @@ void ParquetColumnChunkReader::init(size_t chunk_size_) {
     page_reader->seekToOffset(start_offset);
 
     auto compress_type = metadata().codec;
-    compress_codec = getCompressionMethod(compress_type);
+    compress_codec = ICompressCodec::getCompressCodec(getCompressionMethod(compress_type));
     chunk_size = chunk_size_;
 }
 
@@ -133,7 +133,7 @@ void ParquetColumnChunkReader::parseDataPage()
     cur_decoder = decoders[static_cast<int>(encoding)].get();
     if (cur_decoder == nullptr) {
         const EncodingInfo enc_info = EncodingInfo::get(metadata().type, encoding);
-        std::unique_ptr<Decoder> decoder = enc_info.create_decoder();
+        std::unique_ptr<Decoder> decoder = enc_info.createDecoder();
 
         cur_decoder = decoder.get();
         decoders[static_cast<int>(encoding)] = std::move(decoder);
@@ -167,7 +167,7 @@ void ParquetColumnChunkReader::parseDictPage()
     }
 
     EncodingInfo code_info = EncodingInfo::get(metadata().type, dict_encoding);
-    std::unique_ptr<Decoder> dict_decoder = code_info.create_decoder();
+    std::unique_ptr<Decoder> dict_decoder = code_info.createDecoder();
     dict_decoder->setData(data);
 //    dict_decoder->setTypeLength(type_length);
 //    if (dict_encoding == parquet::format::Encoding::PLAIN)
@@ -181,7 +181,7 @@ void ParquetColumnChunkReader::parseDictPage()
 //    {
         // TODO
         code_info = EncodingInfo::get(metadata().type, parquet::format::Encoding::RLE_DICTIONARY);
-        std::unique_ptr<Decoder> decoder = code_info.create_decoder();
+        std::unique_ptr<Decoder> decoder = code_info.createDecoder();
         decoder->setDict(chunk_size, header.dictionary_page_header.num_values, *dict_decoder);
         int rle_encoding = static_cast<int>(parquet::format::Encoding::RLE_DICTIONARY);
         decoders[rle_encoding] = std::move(decoder);
@@ -194,24 +194,19 @@ void ParquetColumnChunkReader::parseDictPage()
 
 void ParquetColumnChunkReader::readAndDecompressPageData(size_t compressed_size, size_t uncompressed_size, bool is_compressed)
 {
-    if (is_compressed && compress_codec != CompressionMethod::None) {
+    if (is_compressed) {
         compressed_data_buf.reserve(compressed_size);
         page_reader->readBytes(compressed_data_buf.data(), compressed_size);
         ReadBufferFromMemory data_read_buffer(compressed_data_buf.data(), compressed_size);
         uncompressed_buf.reserve(uncompressed_size);
         // refactor decompress code
-        if (compress_codec == CompressionMethod::Snappy)
+        if (compress_codec)
         {
-            size_t size;
-            if (!snappy::RawUncompress(compressed_data_buf.data(), compressed_size, uncompressed_buf.data())) {
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "snappy decompress failed");
-            }
-            snappy::GetUncompressedLength(compressed_data_buf.data(), compressed_size, &size);
-            chassert(size == uncompressed_size);
+            compress_codec->decompress(compressed_data_buf.data(), compressed_size, uncompressed_buf.data(), uncompressed_size);
         }
         else
         {
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "unsupported compressed method {}", magic_enum::enum_name(compress_codec));
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "missing compress codec");
         }
     } else {
         uncompressed_buf.reserve(uncompressed_size);
@@ -231,7 +226,7 @@ void ParquetColumnChunkReader::skipPage()
     const auto& header = *page_reader->currentHeader();
     uint32_t compressed_size = header.compressed_page_size;
     uint32_t uncompressed_size = header.uncompressed_page_size;
-    size_t size = compress_codec != CompressionMethod::None ? compressed_size : uncompressed_size;
+    size_t size = compress_codec ? compressed_size : uncompressed_size;
     page_reader->skipBytes(size);
     page_parse_state = PAGE_DATA_PARSED;
 }
