@@ -13,7 +13,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
-PageReader::PageReader(SeekableReadBuffer * stream_, size_t start_, size_t length_) : stream(stream_), finish_offset(start_ + length_)
+PageReader::PageReader(SeekableReadBufferPtr stream_, size_t length_) : stream(stream_), finish_offset(length_)
 {
 }
 void PageReader::nextHeader()
@@ -39,7 +39,6 @@ void PageReader::nextHeader()
     page_buffer.reserve(nbytes);
     do
     {
-        stream->seek(offset, SEEK_SET);
         header_length = stream->read(page_buffer.data(), nbytes);
         try
         {
@@ -54,9 +53,11 @@ void PageReader::nextHeader()
             }
         }
         nbytes <<= 2;
+        stream->seek(offset, SEEK_SET);
     } while (true);
 
     offset += header_length;
+    stream->seek(offset, SEEK_SET);
     next_header_pos = offset + cur_page_header.compressed_page_size;
 }
 
@@ -66,7 +67,7 @@ void PageReader::readBytes(char * buffer, size_t size)
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Size to read exceed page size");
     }
-    stream->seek(offset, SEEK_SET);
+//    stream->seek(offset, SEEK_SET);
     size_t nbytes = stream->read(buffer, size);
     chassert(nbytes == size);
     offset += nbytes;

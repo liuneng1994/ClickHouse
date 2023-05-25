@@ -42,13 +42,14 @@ private:
     // Reads and parses file footer.
     void loadFileMetaData();
     void prepareReadColumns();
-    void initGroupReaders();
+    void initGroupReaderParam();
+    std::shared_ptr<ParquetGroupReader> getGroupReader(int id);
 
 
     ReadBufferFromFileBase * file;
     size_t file_length;
     FileMetaData metadata;
-    std::vector<std::shared_ptr<ParquetGroupReader>> row_group_readers;
+    std::shared_ptr<ParquetGroupReader> current_group_reader;
     ParquetGroupReaderParam group_reader_param;
     size_t chunk_size;
     ScanParam param;

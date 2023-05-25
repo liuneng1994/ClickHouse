@@ -11,8 +11,9 @@ static constexpr size_t HEADER_INIT_SIZE = 1024;
 
 class PageReader
 {
+    friend class ParquetColumnChunkReader;
 public:
-    PageReader(SeekableReadBuffer * stream, size_t start, size_t length);
+    PageReader(SeekableReadBufferPtr stream, size_t length);
     ~PageReader() = default;
 
     void nextHeader();
@@ -24,20 +25,14 @@ public:
 
     void skipBytes(size_t size);
 
-    // seek to read position, this position must be a start of a page header.
-    void seekToOffset(uint64_t offset_)
-    {
-        stream->seek(offset, SEEK_SET);
-        offset = offset_;
-        next_header_pos = offset;
-    }
-
     uint64_t getOffset() const { return offset; }
 
 private:
-    SeekableReadBuffer * stream;
+    // need a new seekable read buffer, shouldn't share read buffer with other page reader
+    SeekableReadBufferPtr stream;
     parquet::format::PageHeader cur_page_header;
     PaddedPODArray<char> page_buffer;
+    std::unique_ptr<PaddedPODArray<char>> page_data;
     uint64_t offset = 0;
     uint64_t next_header_pos = 0;
 

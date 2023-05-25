@@ -128,21 +128,21 @@ BENCHMARK(BM_CustomParquet)
 //    ->Arg(8192 * 3)
 //    ->Arg(8192 * 4)
     ->MinWarmUpTime(2)
-    ->MinTime(20)
+    ->MinTime(50)
     //    ->Threads(8)
     ->Unit(benchmark::TimeUnit::kMillisecond);
 //
-//BENCHMARK(BM_CommunityParquet)
-////    ->Arg(2048)
-////    ->Arg(4096)
-//    ->Arg(8192)
+BENCHMARK(BM_CommunityParquet)
+//    ->Arg(2048)
+//    ->Arg(4096)
+    ->Arg(8192)
 //    ->Arg(8192 * 2)
 //    ->Arg(8192 * 3)
 //    ->Arg(8192 * 4)
-//    ->MinWarmUpTime(2)
-//    ->MinTime(20)
-////        ->Threads(8)
-//    ->Unit(benchmark::TimeUnit::kMillisecond);
+    ->MinWarmUpTime(2)
+    ->MinTime(50)
+//        ->Threads(8)
+    ->Unit(benchmark::TimeUnit::kMillisecond);
 
 
 // Run the benchmark

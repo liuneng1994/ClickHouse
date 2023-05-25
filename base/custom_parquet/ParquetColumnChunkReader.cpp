@@ -36,11 +36,14 @@ void ParquetColumnChunkReader::init(size_t chunk_size_) {
     if (!stream) {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "stream is missing");
     }
-    page_reader = std::make_unique<PageReader>(stream, start_offset, size);
-
-    // seek to the first page
-    page_reader->seekToOffset(start_offset);
-
+    std::unique_ptr<PaddedPODArray<char>> page_data = std::make_unique<PaddedPODArray<char>>();
+    page_data->resize_fill(size);
+    stream->seek(start_offset, SEEK_SET);
+    auto bytes = stream->readBig(page_data->data(), size);
+    chassert(bytes == size);
+    SeekableReadBufferPtr page_stream = std::make_shared<ReadBufferFromMemory>(page_data->data(), page_data->size());
+    page_reader = std::make_unique<PageReader>(page_stream, size);
+    page_reader->page_data = std::move(page_data);
     auto compress_type = metadata().codec;
     compress_codec = ICompressCodec::getCompressCodec(getCompressionMethod(compress_type));
     chunk_size = chunk_size_;
