@@ -73,7 +73,7 @@ void ParquetFileReader::init()
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Parquet file is too small");
     loadFileMetaData();
     prepareReadColumns();
-    initGroupReaders();
+    initGroupReaderParam();
 }
 
 
@@ -96,7 +96,7 @@ void ParquetFileReader::prepareReadColumns()
     }
 }
 
-void ParquetFileReader::initGroupReaders()
+void ParquetFileReader::initGroupReaderParam()
 {
     group_reader_param.read_cols = read_cols;
     group_reader_param.chunk_size = chunk_size;
@@ -108,26 +108,31 @@ void ParquetFileReader::initGroupReaders()
     for (size_t i = 0; i < metadata.parquetMetaData().row_groups.size(); i++)
     {
         if (param.skip_row_groups.contains(i)) continue;
-        auto row_group_reader = std::make_shared<ParquetGroupReader>(group_reader_param, i);
-        row_group_readers.emplace_back(row_group_reader);
         total_row_count += metadata.parquetMetaData().row_groups[i].num_rows;
     }
-    row_group_size = row_group_readers.size();
-
-
-    // initialize row group readers.
-    for (const auto& reader : row_group_readers)
-    {
-        reader->init();
-    }
+    row_group_size = metadata.parquetMetaData().row_groups.size();
 }
 
+std::shared_ptr<ParquetGroupReader> ParquetFileReader::getGroupReader(int id)
+{
+    return std::make_shared<ParquetGroupReader>(group_reader_param, id);
+}
 
 Chunk ParquetFileReader::getNext()
 {
     while (cur_row_group_idx < row_group_size)
     {
-        Chunk res = row_group_readers[cur_row_group_idx]->getNext();
+        if (param.skip_row_groups.contains(cur_row_group_idx))
+        {
+            cur_row_group_idx++;
+            continue ;
+        }
+        if (!current_group_reader)
+        {
+            current_group_reader = getGroupReader(cur_row_group_idx);
+            current_group_reader->init();
+        }
+        Chunk res = current_group_reader->getNext();
         if (res.hasRows())
         {
             scan_row_count += res.getNumRows();
@@ -135,7 +140,8 @@ Chunk ParquetFileReader::getNext()
         }
         else
         {
-            row_group_readers[cur_row_group_idx]->close();
+            current_group_reader->close();
+            current_group_reader.reset();
             cur_row_group_idx++;
         }
     }
