@@ -23,7 +23,7 @@ add_library(
         schema.cpp
         metadata.cpp
         metadata.h
-        param.h bit_util.cpp bit_util.h CompressCodec.cpp CompressCodec.h CustomParquetBlockInputFormat.cpp CustomParquetBlockInputFormat.h)
+        param.h bit_util.cpp bit_util.h CompressCodec.cpp CompressCodec.h CustomParquetBlockInputFormat.cpp CustomParquetBlockInputFormat.h Filters.cpp Filters.h)
 
 target_include_directories(parquet PUBLIC
         ${ClickHouse_SOURCE_DIR}/contrib/arrow/cpp/src/

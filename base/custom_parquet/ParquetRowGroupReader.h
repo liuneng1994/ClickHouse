@@ -23,7 +23,6 @@ public:
 private:
     void initColumnReaders();
     void createColumnReader(const ParquetGroupReaderParam::Column& column);
-    Chunk createReadChunk(const std::vector<int>& column_indices);
 
     Chunk read(const std::vector<int>& read_columns, size_t row_count);
 

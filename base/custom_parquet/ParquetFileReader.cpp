@@ -3,13 +3,14 @@
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeMap.h>
 #include <IO/ReadBufferFromFileBase.h>
+#include <generated/parquet_types.h>
 #include <thrift/protocol/TCompactProtocol.h>
 #include <thrift/protocol/TProtocol.h>
 #include <Common/Exception.h>
 #include <Common/PODArray.h>
-#include "thrift/ThriftFileTransport.h"
-#include <generated/parquet_types.h>
+#include "Decoder.h"
 #include "ParquetRowGroupReader.h"
+#include "thrift/ThriftFileTransport.h"
 
 
 namespace DB
@@ -29,13 +30,13 @@ void check(bool condition, String msg)
     }
 }
 
-ParquetFileReader::ParquetFileReader(ReadBufferFromFileBase* file_, ScanParam param_, size_t chunk_size_)
+ParquetFileReader::ParquetFileReader(ReadBufferFromFileBase * file_, ScanParam param_, size_t chunk_size_)
     : file(file_), chunk_size(chunk_size_), param(param_)
 {
     file_length = file->getFileSize();
 }
 
-std::unique_ptr<apache::thrift::protocol::TProtocol> createThriftProtocol(ReadBufferFromFileBase* file)
+std::unique_ptr<apache::thrift::protocol::TProtocol> createThriftProtocol(ReadBufferFromFileBase * file)
 {
     auto transport = std::make_shared<ThriftFileTransport>(file);
     return std::make_unique<apache::thrift::protocol::TCompactProtocolT<ThriftFileTransport>>(transport);
@@ -107,7 +108,8 @@ void ParquetFileReader::initGroupReaderParam()
     // select and create row group readers.
     for (size_t i = 0; i < metadata.parquetMetaData().row_groups.size(); i++)
     {
-        if (param.skip_row_groups.contains(i)) continue;
+        if (param.skip_row_groups.contains(i))
+            continue;
         total_row_count += metadata.parquetMetaData().row_groups[i].num_rows;
     }
     row_group_size = metadata.parquetMetaData().row_groups.size();
@@ -125,10 +127,15 @@ Chunk ParquetFileReader::getNext()
         if (param.skip_row_groups.contains(cur_row_group_idx))
         {
             cur_row_group_idx++;
-            continue ;
+            continue;
         }
         if (!current_group_reader)
         {
+            if (filterRowGroup(cur_row_group_idx))
+            {
+                cur_row_group_idx++;
+                continue ;
+            }
             current_group_reader = getGroupReader(cur_row_group_idx);
             current_group_reader->init();
         }
@@ -148,4 +155,170 @@ Chunk ParquetFileReader::getNext()
     return {};
 }
 
+bool ParquetFileReader::readMinMaxBlock(const parquet::format::RowGroup & row_group, Block & minBlock, Block & maxBlock) const
+{
+    assertBlocksHaveEqualStructure(minBlock, maxBlock, "parquet read min max block");
+    for (const auto & col : minBlock.getNames())
+    {
+        const auto * column_meta = getColumnMeta(row_group, col);
+        if (column_meta == nullptr)
+        {
+            return false;
+        }
+        else if (!column_meta->__isset.statistics)
+        {
+            return false;
+        }
+        else
+        {
+            const ParquetField * field = metadata.schema().resolveByName(col);
+            const parquet::format::ColumnOrder * column_order = nullptr;
+            if (metadata.parquetMetaData().__isset.column_orders)
+            {
+                const auto & column_orders = metadata.parquetMetaData().column_orders;
+                size_t column_idx = field->physical_column_index;
+                column_order = column_idx < column_orders.size() ? &column_orders[column_idx] : nullptr;
+            }
+
+            bool decode_ok = decodeMinMaxColumn(
+                *column_meta,
+                column_order,
+                minBlock.getByName(col).column->assumeMutable(),
+                maxBlock.getByName(col).column->assumeMutable());
+            if (!decode_ok)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool ParquetFileReader::filterRowGroup(size_t id)
+{
+    if (param.groupFilter) {
+        auto min_chunk = param.groupFilter->getArguments().cloneEmpty();
+        auto max_chunk = param.groupFilter->getArguments().cloneEmpty();
+
+        bool exist = readMinMaxBlock(metadata.parquetMetaData().row_groups[id], min_chunk, max_chunk);
+        if (!exist) {
+            return false;
+        }
+            auto min_column = param.groupFilter->execute(min_chunk);
+            auto max_column = param.groupFilter->execute(max_chunk);
+            int64_t min = min_column->getInt(0);
+            int64_t max = min_column->getInt(0);
+
+            if (min == 0 && max == 0) {
+                return true;
+            }
+    }
+    return false;
+}
+const parquet::format::ColumnMetaData *
+ParquetFileReader::getColumnMeta(const parquet::format::RowGroup & row_group, const std::string & col_name)
+{
+    for (const auto & column : row_group.columns)
+    {
+        if (column.meta_data.path_in_schema[0] == co+l_name)
+        {
+            return &column.meta_data;
+        }
+    }
+    return nullptr;
+}
+bool ParquetFileReader::decodeMinMaxColumn(
+    const parquet::format::ColumnMetaData & column_meta,
+    const parquet::format::ColumnOrder * column_order,
+    MutableColumnPtr min_column,
+    MutableColumnPtr max_column)
+{
+    if (!canUseMinMaxStats(column_meta, column_order))
+    {
+        return false;
+    }
+
+    switch (column_meta.type)
+    {
+        case parquet::format::Type::type::INT32: {
+            int32_t min_value = 0;
+            int32_t max_value = 0;
+            if (column_meta.statistics.__isset.min_value)
+            {
+                PlainDecoder<int32_t>::decode(column_meta.statistics.min_value, &min_value);
+                PlainDecoder<int32_t>::decode(column_meta.statistics.max_value, &max_value);
+            }
+            else
+            {
+                PlainDecoder<int32_t>::decode(column_meta.statistics.min, &min_value);
+                PlainDecoder<int32_t>::decode(column_meta.statistics.max, &max_value);
+            }
+            min_column->insert(min_value);
+            max_column->insert(max_value);
+            break;
+        }
+        case parquet::format::Type::type::INT64: {
+            int64_t min_value = 0;
+            int64_t max_value = 0;
+            if (column_meta.statistics.__isset.min_value)
+            {
+                PlainDecoder<int64_t>::decode(column_meta.statistics.min_value, &min_value);
+                PlainDecoder<int64_t>::decode(column_meta.statistics.max_value, &max_value);
+            }
+            else
+            {
+                PlainDecoder<int64_t>::decode(column_meta.statistics.max, &max_value);
+                PlainDecoder<int64_t>::decode(column_meta.statistics.min, &min_value);
+            }
+            min_column->insert(min_value);
+            max_column->insert(max_value);
+            break;
+        }
+        default:
+            return false;
+    }
+    return true;
+}
+bool ParquetFileReader::canUseStats(const parquet::format::Type::type & type, const parquet::format::ColumnOrder * column_order)
+{
+    // If column order is not set, only statistics for numeric types can be trusted.
+    if (column_order == nullptr)
+    {
+        // is boolean | is interger | is floating
+        return type == parquet::format::Type::type::BOOLEAN || isIntegerType(type) || type == parquet::format::Type::type::DOUBLE;
+    }
+    // Stats can be used if the column order is TypeDefinedOrder (see parquet.thrift).
+    return column_order->__isset.TYPE_ORDER;
+}
+
+bool ParquetFileReader::canUseDeprecatedStats(const parquet::format::Type::type & type, const parquet::format::ColumnOrder * column_order)
+{
+    // If column order is set to something other than TypeDefinedOrder, we shall not use the
+    // stats (see parquet.thrift).
+    if (column_order != nullptr && !column_order->__isset.TYPE_ORDER)
+    {
+        return false;
+    }
+    return type == parquet::format::Type::type::BOOLEAN || isIntegerType(type) || type == parquet::format::Type::type::DOUBLE;
+}
+
+bool ParquetFileReader::isIntegerType(const parquet::format::Type::type & type)
+{
+    return type == parquet::format::Type::type::INT32 || type == parquet::format::Type::type::INT64
+        || type == parquet::format::Type::type::INT96;
+}
+
+bool ParquetFileReader::canUseMinMaxStats(
+    const parquet::format::ColumnMetaData & column_meta, const parquet::format::ColumnOrder * column_order)
+{
+    if (column_meta.statistics.__isset.min_value && canUseStats(column_meta.type, column_order))
+    {
+        return true;
+    }
+    if (column_meta.statistics.__isset.min && canUseDeprecatedStats(column_meta.type, column_order))
+    {
+        return true;
+    }
+    return false;
+}
 }
