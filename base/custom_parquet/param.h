@@ -3,6 +3,7 @@
 #include <generated/parquet_types.h>
 #include <IO/SeekableReadBuffer.h>
 #include "metadata.h"
+#include "Filters.h"
 
 namespace DB
 {
@@ -20,6 +21,8 @@ struct ColumnReaderOptions
     size_t chunk_size = 0;
     SeekableReadBuffer * stream = nullptr;
     parquet::format::RowGroup * row_group_meta = nullptr;
+    bool is_numeric_type = false;
+    DataTypePtr stats_type;
     ColumnReaderContext * context = nullptr;
 };
 
@@ -35,9 +38,18 @@ struct ParquetGroupReaderParam {
 
     std::vector<Column> read_cols;
 
+    // condition column index in parquet
+    std::vector<Column> condition_cols;
+
+    std::vector<Column> output_cols;
+
     std::string timezone;
 
     size_t chunk_size = 0;
+
+    std::shared_ptr<PushDownFilter> filter;
+
+    std::shared_ptr<PageFilter> page_filter;
 
     FileMetaData* file_metadata = nullptr;
 

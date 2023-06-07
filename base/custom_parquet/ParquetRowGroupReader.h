@@ -25,13 +25,19 @@ private:
     void createColumnReader(const ParquetGroupReaderParam::Column& column);
 
     Chunk read(const std::vector<int>& read_columns, size_t row_count);
+    ColumnPtr readColumn(int idx, size_t row_count);
+    bool filterPage();
 
     std::shared_ptr<parquet::format::RowGroup> row_group_metadata;
     std::unordered_map<size_t, std::unique_ptr<ParquetColumnReader>> column_readers;
+    /// col_idx_in_chunk
+    std::unordered_map<DB::String, size_t> column_name_to_idx;
+    std::unordered_map<size_t, DB::String> column_idx_to_name;
     std::vector<ParquetGroupReaderParam::Column> direct_read_columns;
     std::vector<int> active_column_indices;
     ParquetGroupReaderParam& param;
     ColumnReaderOptions column_reader_opts;
+    bool end = false;
 };
 }
 

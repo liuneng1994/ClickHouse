@@ -104,6 +104,15 @@ void ParquetFileReader::initGroupReaderParam()
     group_reader_param.file_metadata = &metadata;
     group_reader_param.case_sensitive = param.case_sensitive;
     group_reader_param.file_read_buffer = file;
+    if (param.filter)
+    {
+        group_reader_param.page_filter = param.filter->getPageFilter();
+        group_reader_param.filter = param.filter;
+    }
+    for (const auto & item : param.active_columns)
+    {
+        group_reader_param.output_cols.emplace_back(read_cols[item]);
+    }
 
     // select and create row group readers.
     for (size_t i = 0; i < metadata.parquetMetaData().row_groups.size(); i++)
@@ -111,6 +120,14 @@ void ParquetFileReader::initGroupReaderParam()
         if (param.skip_row_groups.contains(i))
             continue;
         total_row_count += metadata.parquetMetaData().row_groups[i].num_rows;
+        //        for (const auto & item : metadata.parquetMetaData().row_groups[i].columns)
+        //        {
+        //            std::cerr << item.meta_data.path_in_schema[0] << ":" << reinterpret_cast<const int64_t *>(item.meta_data.statistics.min_value.data())[0] << "\t" << reinterpret_cast<const int64_t *>(item.meta_data.statistics.max_value.data())[0] << std::endl;
+        //            std::cerr << item.meta_data.path_in_schema[0] << ":" << reinterpret_cast<const double *>(item.meta_data.statistics.min_value.data())[0] << "\t" << reinterpret_cast<const double *>(item.meta_data.statistics.max_value.data())[0] << std::endl;
+        //            std::cerr << item.meta_data.path_in_schema[0] << ":" << item.meta_data.statistics.min_value << "\t" << item.meta_data.statistics.max_value << std::endl;
+        //
+        //        }
+        //        std::cerr <<std::endl;
     }
     row_group_size = metadata.parquetMetaData().row_groups.size();
 }
@@ -134,7 +151,7 @@ Chunk ParquetFileReader::getNext()
             if (filterRowGroup(cur_row_group_idx))
             {
                 cur_row_group_idx++;
-                continue ;
+                continue;
             }
             current_group_reader = getGroupReader(cur_row_group_idx);
             current_group_reader->init();
@@ -196,22 +213,25 @@ bool ParquetFileReader::readMinMaxBlock(const parquet::format::RowGroup & row_gr
 
 bool ParquetFileReader::filterRowGroup(size_t id)
 {
-    if (param.groupFilter) {
+    if (param.groupFilter)
+    {
         auto min_chunk = param.groupFilter->getArguments().cloneEmpty();
         auto max_chunk = param.groupFilter->getArguments().cloneEmpty();
 
         bool exist = readMinMaxBlock(metadata.parquetMetaData().row_groups[id], min_chunk, max_chunk);
-        if (!exist) {
+        if (!exist)
+        {
             return false;
         }
-            auto min_column = param.groupFilter->execute(min_chunk);
-            auto max_column = param.groupFilter->execute(max_chunk);
-            int64_t min = min_column->getInt(0);
-            int64_t max = min_column->getInt(0);
+        auto min_column = param.groupFilter->execute(min_chunk);
+        auto max_column = param.groupFilter->execute(max_chunk);
+        int64_t min = min_column->get64(0);
+        int64_t max = max_column->get64(0);
 
-            if (min == 0 && max == 0) {
-                return true;
-            }
+        if (min == 0 && max == 0)
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -220,7 +240,7 @@ ParquetFileReader::getColumnMeta(const parquet::format::RowGroup & row_group, co
 {
     for (const auto & column : row_group.columns)
     {
-        if (column.meta_data.path_in_schema[0] == co+l_name)
+        if (column.meta_data.path_in_schema[0] == col_name)
         {
             return &column.meta_data;
         }

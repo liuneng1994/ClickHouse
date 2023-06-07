@@ -5,28 +5,12 @@ namespace DB
 {
 size_t RequiredStoredColumnReader::readRecords(size_t num_rows, MutableColumnPtr & dst)
 {
-    if (end) [[unlikely]]
-    {
-        return 0;
-    }
     size_t records_read = 0;
     while (records_read < num_rows)
     {
         if (num_values_left_in_cur_page == 0)
         {
-            try
-            {
-                next_page();
-            }
-            catch (EndOfFile &)
-            {
-                end = true;
-                break;
-            }
-            if (num_values_left_in_cur_page == 0) [[unlikely]]
-            {
-                break;
-            }
+            break;
         }
 
         size_t records_to_read = std::min(num_rows - records_read, num_values_left_in_cur_page);
@@ -47,6 +31,11 @@ void RequiredStoredColumnReader::init(const ParquetField * field_, const parquet
     field = field_;
     reader = std::make_shared<ParquetColumnChunkReader>(field->maxDefLevel(), field->maxRepLevel(), chunk_metadata_, opts);
     reader->init(opts.chunk_size);
+}
+
+bool RequiredStoredColumnReader::canUseMinMaxStatics()
+{
+    return reader->canUseMinMaxStats();
 }
 
 std::unique_ptr<StoredColumnReader> StoredColumnReader::create(
@@ -70,20 +59,41 @@ std::unique_ptr<StoredColumnReader> StoredColumnReader::create(
     }
 }
 
-size_t StoredColumnReader::next_page()
+size_t StoredColumnReader::nextPage()
 {
-    chassert(num_values_left_in_cur_page == 0);
-    reader->loadHeader();
-    if (reader->currentPageIsDict())
+    if (num_values_left_in_cur_page == 0)
     {
-        reader->loadPage();
-        reader->skipPage();
         reader->loadHeader();
-    }
+        if (reader->currentPageIsDict())
+        {
+            reader->loadPage();
+            reader->skipPage();
+            reader->loadHeader();
+        }
 
-    reader->loadPage();
-    num_values_left_in_cur_page = reader->numValues();
+        reader->loadPage();
+        num_values_left_in_cur_page = reader->numValues();
+    }
     return num_values_left_in_cur_page;
+}
+size_t StoredColumnReader::skipPage()
+{
+    reader->skipPage();
+    auto skip_rows = num_values_left_in_cur_page;
+    num_values_left_in_cur_page = 0;
+    return skip_rows;
+}
+
+void StoredColumnReader::skipRows(size_t rows)
+{
+    auto skipped_rows = std::min(rows, num_values_left_in_cur_page);
+    reader->skipRows(skipped_rows);
+    num_values_left_in_cur_page = num_values_left_in_cur_page - skipped_rows;
+}
+
+std::pair<ColumnPtr, ColumnPtr> StoredColumnReader::readMinMaxColumn()
+{
+    return reader->readMinMaxColumn();
 }
 
 void OptionalStoredColumnReader::init(const ParquetField * field, const parquet::format::ColumnChunk * chunk_metadata)
@@ -94,28 +104,12 @@ void OptionalStoredColumnReader::init(const ParquetField * field, const parquet:
 }
 size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableColumnPtr & dst)
 {
-    if (end) [[unlikely]]
-    {
-        return 0;
-    }
     size_t records_read = 0;
     while (records_read < num_rows)
     {
         if (num_values_left_in_cur_page == 0)
         {
-            try
-            {
-                next_page();
-            }
-            catch (EndOfFile &)
-            {
-                end = true;
-                break;
-            }
-            if (num_values_left_in_cur_page == 0) [[unlikely]]
-            {
-                break;
-            }
+            break;
         }
         size_t records_to_read = std::min(num_rows - records_read, num_values_left_in_cur_page);
         size_t repeated_count = reader->getDefLevelDecoder().nextRepeatedCount();

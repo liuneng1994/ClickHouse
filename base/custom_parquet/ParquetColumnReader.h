@@ -3,12 +3,12 @@
 #include <Columns/IColumn.h>
 #include <DataTypes/IDataType.h>
 #include <IO/SeekableReadBuffer.h>
-#include "Utils.h"
-#include "schema.h"
 #include <generated/parquet_types.h>
-#include "type.h"
 #include "StoredColumnReader.h"
+#include "Utils.h"
 #include "param.h"
+#include "schema.h"
+#include "type.h"
 
 
 namespace DB
@@ -31,6 +31,18 @@ public:
         finish_batch();
     }
 
+    virtual bool canUseMinMaxStatics() { return reader->canUseMinMaxStatics(); }
+
+    std::pair<ColumnPtr, ColumnPtr> readMinMaxColumn() {return reader->readMinMaxColumn();}
+
+    size_t nextPage() {return reader->nextPage();}
+
+    size_t skipPage() {return reader->skipPage();}
+
+    void skipRows(size_t rows) {return reader->skipRows(rows);}
+
+    virtual DataTypePtr getStatsType() = 0;
+
     virtual void get_levels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) = 0;
 
     virtual void get_dict_values(MutableColumnPtr & /*column*/)
@@ -47,6 +59,9 @@ public:
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
     }
+
+protected:
+    std::unique_ptr<StoredColumnReader> reader;
 };
 
 class ScalarColumnReader : public ParquetColumnReader
@@ -69,10 +84,12 @@ public:
         reader->getLevels(def_levels, rep_levels, num_levels);
     }
 
+    bool canUseMinMaxStatics() override { return reader->canUseMinMaxStatics(); }
+
+    DataTypePtr getStatsType() override { return opts.stats_type; }
+
 private:
     const ColumnReaderOptions & opts;
-
-    std::unique_ptr<StoredColumnReader> reader;
 };
 
 class ListColumnReader : public ParquetColumnReader

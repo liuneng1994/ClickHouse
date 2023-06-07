@@ -31,7 +31,21 @@ public:
 
     void skipPage();
 
+    void skipRows(size_t rows);
+
     bool currentPageIsDict();
+
+    bool canUseMinMaxStats()
+    {
+        if (currentPageIsDict()) return false;
+        auto header = page_reader->currentHeader();
+        bool is_plain_page = header->data_page_header.encoding == parquet::format::Encoding::PLAIN;
+        bool has_stats = header->data_page_header.__isset.statistics;
+        return is_plain_page && opts.is_numeric_type && has_stats;
+    }
+
+    std::pair<ColumnPtr, ColumnPtr> readMinMaxColumn();
+
 
     size_t numValues() const { return num_values; }
 

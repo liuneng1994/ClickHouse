@@ -233,6 +233,14 @@ void ParquetColumnChunkReader::skipPage()
     page_reader->skipBytes(size);
     page_parse_state = PAGE_DATA_PARSED;
 }
+
+void ParquetColumnChunkReader::skipRows(size_t rows)
+{
+    if (rows == 0) return;
+    chassert(cur_decoder != nullptr);
+    cur_decoder->skipRows(rows);
+}
+
 bool ParquetColumnChunkReader::currentPageIsDict()
 {
     const auto * header = page_reader->currentHeader();
@@ -240,5 +248,45 @@ bool ParquetColumnChunkReader::currentPageIsDict()
 }
 
 
+std::pair<ColumnPtr, ColumnPtr> ParquetColumnChunkReader::readMinMaxColumn()
+{
+    chassert(opts.stats_type);
+    chassert(canUseMinMaxStats());
+    const auto * header = page_reader->currentHeader();
+    ColumnPtr min_column;
+    ColumnPtr max_column;
+    Int64 min_value = 0;
+    Int64 max_value = 0;
+    if (!header->data_page_header.statistics.min.empty())
+    {
+        WhichDataType which(opts.stats_type);
+        if (which.isInt64())
+        {
+
+            PlainDecoder<Int64>::decode(header->data_page_header.statistics.min, &min_value);
+            PlainDecoder<Int64>::decode(header->data_page_header.statistics.max, &max_value);
+        }
+        else
+        {
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "unsupported stats type {}", opts.stats_type->getName());
+        }
+    }
+    else
+    {
+        WhichDataType which(opts.stats_type);
+        if (which.isInt64())
+        {
+            PlainDecoder<Int64>::decode(header->data_page_header.statistics.min_value, &min_value);
+            PlainDecoder<Int64>::decode(header->data_page_header.statistics.max_value, &max_value);
+        }
+        else
+        {
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "unsupported stats type {}", opts.stats_type->getName());
+        }
+    }
+    min_column = opts.stats_type->createColumnConst(1, min_value);
+    max_column = opts.stats_type->createColumnConst(1, max_value);
+    return std::pair(min_column, max_column);
+}
 
 }

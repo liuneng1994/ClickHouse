@@ -27,13 +27,20 @@ public:
 
     virtual void getLevels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) = 0;
 
+    virtual bool canUseMinMaxStatics() {return false;}
+
+    std::pair<ColumnPtr, ColumnPtr> readMinMaxColumn();
+
+    size_t nextPage();
+
+    size_t skipPage();
+
+    void skipRows(size_t rows);
 protected:
-    size_t next_page();
 
     std::shared_ptr<ParquetColumnChunkReader> reader;
     size_t num_values_left_in_cur_page = 0;
     const ColumnReaderOptions & opts;
-    bool end = false;
 };
 
 
@@ -55,6 +62,8 @@ public:
         *rep_levels = nullptr;
         *num_levels = 0;
     }
+
+    bool canUseMinMaxStatics() override;
 
 private:
     const parquet::format::ColumnChunk chunk_metadata;

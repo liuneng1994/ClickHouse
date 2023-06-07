@@ -29,8 +29,9 @@ struct ScanParam
 {
     Block header;
     std::unordered_set<int> skip_row_groups;
+    std::vector<int> active_columns;
     bool case_sensitive = false;
-    std::shared_ptr<Filter> filter;
+    std::shared_ptr<PushDownFilter> filter;
     std::shared_ptr<RowGroupFilter> groupFilter;
 };
 

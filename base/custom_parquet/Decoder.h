@@ -49,6 +49,11 @@ public:
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
     }
 
+    virtual size_t skipRows(size_t)
+    {
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
+    }
+
     // used to set fixed length
     virtual void setTypeLength(int32_t /*type_length*/) { }
 
@@ -100,6 +105,12 @@ public:
             column_data.insert_assume_reserved(data_start, data_start + count);
         }
         offset += count;
+    }
+
+    size_t skipRows(size_t rows) override
+    {
+        offset += rows;
+        return rows;
     }
 
     void nextBatch(size_t count, uint8_t * dst) override
@@ -179,6 +190,18 @@ public:
         row_offset += count;
     }
 
+    size_t skipRows(size_t rows) override
+    {
+        size_t total_size = rows * sizeof(uint32_t);
+        for (size_t i = row_offset; i < row_offset + rows; i++)
+        {
+            total_size += size_list[i];
+        }
+        offset+=total_size;
+        row_offset += rows;
+        return rows;
+    }
+
     void nextBatch(size_t, uint8_t *) override { }
 
 private:
@@ -218,9 +241,11 @@ public:
     // initialize dictionary
     void setDict(size_t chunk_size, size_t num_values, Decoder & decoder) override
     {
-        dict.resize(num_values);
-        indexes.resize(chunk_size);
-        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(dict.data()));
+        dict = ColumnVector<T>::create();
+        indexes = ColumnVector<UInt32>::create();
+        dict->insertManyDefaults(num_values);
+        indexes->reserve(chunk_size);
+        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(static_cast<ColumnVector<T>&>(*dict).getData().data()));
     }
 
     void setData(const Slice & data) override
@@ -239,34 +264,47 @@ public:
 
     void nextBatch(size_t count, MutableColumnPtr & dst) override
     {
+        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
         dst->reserve(count);
-        indexes.reserve(count);
-        indexBatchDecoder.GetBatch(indexes.data(), static_cast<int32_t>(count));
+        indexes_vector.getData().resize_fill(count);
+        indexBatchDecoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
 
         if (dst->isNullable())
         {
             auto & nullable_col = static_cast<ColumnNullable &>(*dst);
             nullable_col.getNullMapData().resize_fill(dst->size() + count);
             auto & column_data = static_cast<ColumnVector<T> &>(nullable_col.getNestedColumn());
-            for (size_t i = 0; i < count; i++)
-            {
-                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
-            }
+            auto values = dict->index(*indexes, count);
+            column_data.insertRangeFrom(*values, 0, count);
+//            for (size_t i = 0; i < count; i++)
+//            {
+//                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
+//            }
         }
         else
         {
+            auto values = dict->index(*indexes, count);
             auto & column_data = static_cast<ColumnVector<T> &>(*dst);
-            for (size_t i = 0; i < count; i++)
-            {
-                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
-            }
+            column_data.insertRangeFrom(*values, 0, count);
+//            for (size_t i = 0; i < count; i++)
+//            {
+//                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
+//            }
         }
+    }
+
+    size_t skipRows(size_t rows) override
+    {
+        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
+        indexes_vector.getData().resize_fill(rows);
+        indexBatchDecoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(rows));
+        return rows;
     }
 
 private:
     RleBatchDecoder<uint32_t> indexBatchDecoder;
-    std::vector<T> dict;
-    std::vector<uint32_t> indexes;
+    MutableColumnPtr dict;
+    MutableColumnPtr indexes;
 };
 
 
@@ -279,7 +317,8 @@ public:
 
     void setDict(size_t chunk_size, size_t num_values, Decoder & decoder) override
     {
-        indexes.resize(chunk_size);
+        indexes = ColumnVector<UInt32>::create();
+        indexes->reserve(chunk_size);
         slices.resize(chunk_size);
         auto type = std::make_shared<DataTypeString>();
         dict = type->createColumn();
@@ -313,33 +352,38 @@ public:
 
     void nextBatch(size_t count, MutableColumnPtr & dst) override
     {
+        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
         dst->reserve(count);
-        index_batch_decoder.GetBatch(indexes.data(), static_cast<int32_t>(count));
+        indexes_vector.getData().resize_fill(count);
+        index_batch_decoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
         if (dst->isNullable())
         {
             auto & nullable_col = static_cast<ColumnNullable &>(*dst);
             nullable_col.getNullMapData().resize_fill(dst->size() + count);
             auto & column_data = static_cast<ColumnString &>(nullable_col.getNestedColumn());
-            for (size_t i = 0; i < count; i++)
-            {
-                auto data = dict->getDataAt(indexes[i]);
-                column_data.insertData(data.data, data.size);
-            }
+            auto values = dict->index(*indexes, count);
+            column_data.insertRangeFrom(*values, 0, count);
         }
         else
         {
-            for (size_t i = 0; i < count; ++i)
-            {
-                auto data = dict->getDataAt(indexes[i]);
-                dst->insertData(data.data, data.size);
-            }
+            auto values = dict->index(*indexes, count);
+            auto & column_data = static_cast<ColumnString &>(*dst);
+            column_data.insertRangeFrom(*values, 0, count);
         }
+    }
+
+    size_t skipRows(size_t rows) override
+    {
+        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
+        indexes_vector.getData().resize_fill(rows);
+        index_batch_decoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(rows));
+        return rows;
     }
 
 private:
     RleBatchDecoder<uint32_t> index_batch_decoder;
     MutableColumnPtr dict;
-    PaddedPODArray<uint32_t> indexes;
+    MutableColumnPtr indexes;
     std::vector<Slice> slices;
 };
 
