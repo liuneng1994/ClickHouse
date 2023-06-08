@@ -268,28 +268,17 @@ public:
         dst->reserve(count);
         indexes_vector.getData().resize_fill(count);
         indexBatchDecoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
-
+        auto * dict_column = static_cast<ColumnVector<T> *>(dst.get());
         if (dst->isNullable())
         {
             auto & nullable_col = static_cast<ColumnNullable &>(*dst);
             nullable_col.getNullMapData().resize_fill(dst->size() + count);
-            auto & column_data = static_cast<ColumnVector<T> &>(nullable_col.getNestedColumn());
-            auto values = dict->index(*indexes, count);
-            column_data.insertRangeFrom(*values, 0, count);
-//            for (size_t i = 0; i < count; i++)
-//            {
-//                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
-//            }
+            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
         }
         else
         {
             auto values = dict->index(*indexes, count);
-            auto & column_data = static_cast<ColumnVector<T> &>(*dst);
-            column_data.insertRangeFrom(*values, 0, count);
-//            for (size_t i = 0; i < count; i++)
-//            {
-//                column_data.getData().insert_assume_reserved(&dict[indexes[i]], &dict[indexes[i]] + 1);
-//            }
+            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
         }
     }
 
@@ -356,19 +345,17 @@ public:
         dst->reserve(count);
         indexes_vector.getData().resize_fill(count);
         index_batch_decoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
+        auto * dict_column = static_cast<ColumnString*>(dict.get());
         if (dst->isNullable())
         {
             auto & nullable_col = static_cast<ColumnNullable &>(*dst);
             nullable_col.getNullMapData().resize_fill(dst->size() + count);
-            auto & column_data = static_cast<ColumnString &>(nullable_col.getNestedColumn());
-            auto values = dict->index(*indexes, count);
-            column_data.insertRangeFrom(*values, 0, count);
+            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
         }
         else
         {
             auto values = dict->index(*indexes, count);
-            auto & column_data = static_cast<ColumnString &>(*dst);
-            column_data.insertRangeFrom(*values, 0, count);
+            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
         }
     }
 
@@ -381,6 +368,8 @@ public:
     }
 
 private:
+
+
     RleBatchDecoder<uint32_t> index_batch_decoder;
     MutableColumnPtr dict;
     MutableColumnPtr indexes;

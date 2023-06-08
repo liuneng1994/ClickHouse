@@ -154,31 +154,25 @@ Chunk ParquetGroupReader::read(const std::vector<int> & read_columns, size_t row
         }
         auto selection = param.filter->execute(condition_input);
         const auto & filter = checkAndGetColumn<ColumnVector<UInt8>>(*selection)->getData();
+        ssize_t filtered_count = -1;
         for (const auto & item : condition_input.getColumnsWithTypeAndName())
         {
             if (column_name_to_idx.contains(item.name) && idx_in_chunk_to_result_idx_map.contains(column_name_to_idx[item.name]))
             {
-                auto filtered_column = item.column->filter(filter, selection->size());
+                auto filtered_column = item.column->filter(filter, filtered_count);
+                if (filtered_count == -1)
+                {
+                    filtered_count = filtered_column->size();
+                }
                 columns[idx_in_chunk_to_result_idx_map[column_name_to_idx[item.name]]] = filtered_column->assumeMutable();
             }
         }
-        if (memoryIsZero(filter.data(), 0, selection->size()))
-        {
-            std::cerr << "should skip rows：" << selection->size() << std::endl;
-//            for (const auto & item : non_conditional_columns)
-//            {
-//                column_readers[item]->skipRows(count);
-//            }
-        }
-        //        else
-        //        {
         for (const auto & item : non_conditional_columns)
         {
             auto column = readColumn(item, row_count);
-            auto filtered_column = column->filter(filter, selection->size());
+            auto filtered_column = column->filter(filter, filtered_count);
             columns[idx_in_chunk_to_result_idx_map[item]] = filtered_column->assumeMutable();
         }
-        //        }
     }
     else
     {

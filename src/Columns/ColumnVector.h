@@ -321,6 +321,9 @@ public:
     template <typename Type>
     ColumnPtr indexImpl(const PaddedPODArray<Type> & indexes, size_t limit) const;
 
+    template <typename Type>
+    void indexImplToColumn(const PaddedPODArray<Type> & indexes, MutableColumnPtr & dst, size_t limit) const;
+
     ColumnPtr replicate(const IColumn::Offsets & offsets) const override;
 
     void getExtremes(Field & min, Field & max) const override;
@@ -544,6 +547,29 @@ ColumnPtr ColumnVector<T>::indexImpl(const PaddedPODArray<Type> & indexes, size_
 
     return res;
 }
+
+template <typename T>
+template <typename Type>
+void ColumnVector<T>::indexImplToColumn(const PaddedPODArray<Type> & indexes, MutableColumnPtr & dst, size_t limit) const
+{
+    assert(limit <= indexes.size());
+
+    auto * res = static_cast<ColumnVector<T> *>(dst.get());
+    typename Self::Container & res_data = res->getData();
+#if USE_MULTITARGET_CODE
+    if constexpr (sizeof(T) == 1 && sizeof(Type) == 1)
+    {
+        /// VBMI optimization only applicable for (U)Int8 types
+        if (isArchSupported(TargetArch::AVX512VBMI))
+        {
+            TargetSpecific::AVX512VBMI::vectorIndexImpl<Container, Type>(data, indexes, limit, res_data);
+            return res;
+        }
+    }
+#endif
+    TargetSpecific::Default::vectorIndexImpl<Container, Type>(data, indexes, limit, res_data);
+}
+
 
 /// Prevent implicit template instantiation of ColumnVector for common types
 

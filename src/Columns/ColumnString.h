@@ -204,6 +204,37 @@ public:
     template <typename Type>
     ColumnPtr indexImpl(const PaddedPODArray<Type> & indexes, size_t limit) const;
 
+    template <typename Type>
+    void indexImplToColumn(const PaddedPODArray<Type> & indexes, MutableColumnPtr & dst, size_t limit) const
+    {
+        auto *res = static_cast<ColumnString *>(dst.get());
+        Chars & res_chars = res->chars;
+        Offsets & res_offsets = res->offsets;
+
+        size_t new_chars_size = 0;
+        for (size_t i = 0; i < limit; ++i)
+            new_chars_size += sizeAt(indexes[i]);
+        res_chars.resize(new_chars_size + res_chars.size());
+
+        res_offsets.resize(limit);
+
+        Offset current_new_offset = res_chars.size();
+
+        for (size_t i = 0; i < limit; ++i)
+        {
+            size_t j = indexes[i];
+            size_t string_offset = offsets[j - 1];
+            size_t string_size = offsets[j] - string_offset;
+
+            memcpySmallAllowReadWriteOverflow15(&res_chars[current_new_offset], &chars[string_offset], string_size);
+
+            current_new_offset += string_size;
+            res_offsets[i] = current_new_offset;
+        }
+    }
+
+
+
     void insertDefault() override
     {
         chars.push_back(0);
