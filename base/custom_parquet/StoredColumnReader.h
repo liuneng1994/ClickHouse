@@ -3,14 +3,13 @@
 #include <generated/parquet_types.h>
 #include "schema.h"
 #include "type.h"
+#include "ParquetColumnChunkReader.h"
 #include <Common/PODArray.h>
 
 
 namespace DB
 {
 
-struct ColumnReaderOptions;
-class ParquetColumnChunkReader;
 
 class StoredColumnReader
 {
@@ -23,11 +22,17 @@ public:
 
     virtual void reset() = 0;
 
-    virtual size_t readRecords(size_t num_rows, MutableColumnPtr & dst) = 0;
+    virtual size_t readRecords(size_t num_rows, MutableColumnPtr & dst, bool values = true) = 0;
 
     virtual void getLevels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) = 0;
 
+    virtual void getDictValues(const PaddedPODArray<UInt32> & dict_codes, MutableColumnPtr & column)
+    {
+        reader->getDictValues(dict_codes, column);
+    }
+
     virtual bool canUseMinMaxStatics() {return false;}
+    virtual bool currentIsDict() {return reader->isDictColumn();}
 
     std::pair<ColumnPtr, ColumnPtr> readMinMaxColumn();
 
@@ -54,7 +59,7 @@ public:
 
     void reset() override { }
 
-    size_t readRecords(size_t num_rows, MutableColumnPtr & dst) override;
+    size_t readRecords(size_t num_rows, MutableColumnPtr & dst, bool values = true) override;
 
     void getLevels(level_t ** def_levels, level_t ** rep_levels, size_t * num_levels) override
     {
@@ -73,7 +78,7 @@ private:
 class OptionalStoredColumnReader : public StoredColumnReader
 {
 public:
-    OptionalStoredColumnReader(const ColumnReaderOptions& opts_) : StoredColumnReader(opts_) {}
+    explicit OptionalStoredColumnReader(const ColumnReaderOptions& opts_) : StoredColumnReader(opts_) {}
     ~OptionalStoredColumnReader() override = default;
 
     void init(const ParquetField* field, const parquet::format::ColumnChunk* chunk_metadata);
@@ -81,11 +86,11 @@ public:
     // Reset internal state and ready for next read_values
     void reset() override;
 
-    size_t readRecords(size_t num_records, MutableColumnPtr & dst) override {
+    size_t readRecords(size_t num_records, MutableColumnPtr & dst, bool values) override {
 //        if (_needs_levels) {
 //            return _read_records_and_levels(num_records, dst);
 //        } else {
-            return _read_records_only(num_records, dst);
+            return _read_records_only(num_records, dst, values);
 //        }
     }
 
@@ -102,7 +107,7 @@ public:
 
 private:
 //    void _decode_levels(size_t num_levels);
-    size_t _read_records_only(size_t num_records, MutableColumnPtr & dst);
+    size_t _read_records_only(size_t num_records, MutableColumnPtr & dst, bool values);
 //    size_t _read_records_and_levels(size_t num_records, MutableColumnPtr&  dst);
 
     const ParquetField* _field = nullptr;

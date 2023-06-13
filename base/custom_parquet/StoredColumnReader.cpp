@@ -3,7 +3,7 @@
 
 namespace DB
 {
-size_t RequiredStoredColumnReader::readRecords(size_t num_rows, MutableColumnPtr & dst)
+size_t RequiredStoredColumnReader::readRecords(size_t num_rows, MutableColumnPtr & dst, bool values)
 {
     size_t records_read = 0;
     while (records_read < num_rows)
@@ -18,7 +18,7 @@ size_t RequiredStoredColumnReader::readRecords(size_t num_rows, MutableColumnPtr
         {
             break;
         }
-        reader->decode_values(records_to_read, dst);
+        reader->decode_values(records_to_read, dst, values);
         records_read += records_to_read;
         num_values_left_in_cur_page -= records_to_read;
     }
@@ -102,7 +102,7 @@ void OptionalStoredColumnReader::init(const ParquetField * field, const parquet:
     reader = std::make_shared<ParquetColumnChunkReader>(_field->maxDefLevel(), _field->maxRepLevel(), chunk_metadata, opts);
     reader->init(opts.chunk_size);
 }
-size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableColumnPtr & dst)
+size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableColumnPtr & dst, bool values)
 {
     size_t records_read = 0;
     while (records_read < num_rows)
@@ -120,7 +120,7 @@ size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableCo
             def_level = reader->getDefLevelDecoder().get_repeated_value(records_to_read);
             if (def_level >= _field->maxDefLevel())
             {
-                reader->decode_values(records_to_read, dst);
+                reader->decode_values(records_to_read, dst, values);
             }
             else
             {
@@ -156,7 +156,7 @@ size_t OptionalStoredColumnReader::_read_records_only(size_t num_rows, MutableCo
                 }
                 else
                 {
-                    reader->decode_values(j - i, dst);
+                    reader->decode_values(j - i, dst, values);
                 }
                 i = j;
             }

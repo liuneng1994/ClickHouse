@@ -23,9 +23,10 @@ public:
 private:
     void initColumnReaders();
     void createColumnReader(const ParquetGroupReaderParam::Column& column);
+    bool supportDictFilter(int column_idx_in_chunk);
 
     Chunk read(const std::vector<int>& read_columns, size_t row_count);
-    ColumnPtr readColumn(int idx, size_t row_count);
+    std::pair<bool, ColumnPtr> readColumn(int idx, size_t row_count, bool force_values);
     bool filterPage();
 
     std::shared_ptr<parquet::format::RowGroup> row_group_metadata;

@@ -39,7 +39,7 @@ public:
 
     virtual void getDictValues(MutableColumnPtr & /*column*/) { throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictValues not supported"); }
 
-    virtual void getDictValues(const std::vector<int32_t> & /*dict_codes*/, MutableColumnPtr &)
+    virtual void getDictValues(const PaddedPODArray<UInt32> & /*dict_codes*/, MutableColumnPtr &)
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictValues not supported");
     }
@@ -49,10 +49,7 @@ public:
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
     }
 
-    virtual size_t skipRows(size_t)
-    {
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
-    }
+    virtual size_t skipRows(size_t) { throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported"); }
 
     // used to set fixed length
     virtual void setTypeLength(int32_t /*type_length*/) { }
@@ -63,7 +60,7 @@ public:
     // For history reason, decoder don't known how many elements encoded in one page.
     // Caller must assure that no out-of-bounds access.
     // It will return ERROR if caller wants to read out-of-bound data.
-    virtual void nextBatch(size_t count, MutableColumnPtr & dst) = 0;
+    virtual void nextBatch(size_t count, MutableColumnPtr & dst, bool values = true) = 0;
 
     virtual void nextBatch(size_t /*count*/, uint8_t * /*dst*/) { throw Exception(ErrorCodes::LOGICAL_ERROR, "nextBatch not supported"); }
 };
@@ -88,7 +85,7 @@ public:
         offset = 0;
     }
 
-    void nextBatch(size_t count, MutableColumnPtr & dst) override
+    void nextBatch(size_t count, MutableColumnPtr & dst, bool) override
     {
         chassert((count + offset) * SIZE_OF_TYPE <= data.size);
         const auto * data_start = reinterpret_cast<const T *>(data.data) + offset;
@@ -165,7 +162,7 @@ public:
         }
     }
 
-    void nextBatch(size_t count, MutableColumnPtr & dst) override
+    void nextBatch(size_t count, MutableColumnPtr & dst, bool) override
     {
         chassert(count + row_offset <= size_list.size());
         size_t total_size = count;
@@ -197,12 +194,10 @@ public:
         {
             total_size += size_list[i];
         }
-        offset+=total_size;
+        offset += total_size;
         row_offset += rows;
         return rows;
     }
-
-    void nextBatch(size_t, uint8_t *) override { }
 
 private:
     void insertDataToStringColumn(ColumnString & col, size_t mem_size, size_t row_count)
@@ -241,11 +236,9 @@ public:
     // initialize dictionary
     void setDict(size_t chunk_size, size_t num_values, Decoder & decoder) override
     {
-        dict = ColumnVector<T>::create();
-        indexes = ColumnVector<UInt32>::create();
-        dict->insertManyDefaults(num_values);
-        indexes->reserve(chunk_size);
-        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(static_cast<ColumnVector<T>&>(*dict).getData().data()));
+        dict.resize_fill(num_values);
+        indexes.resize_fill(chunk_size);
+        decoder.nextBatch(num_values, reinterpret_cast<uint8_t *>(dict.data()));
     }
 
     void setData(const Slice & data) override
@@ -262,38 +255,81 @@ public:
         }
     }
 
-    void nextBatch(size_t count, MutableColumnPtr & dst) override
+    void getDictValues(const PaddedPODArray<UInt32> & dict_codes, MutableColumnPtr & column) override
     {
-        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
-        dst->reserve(count);
-        indexes_vector.getData().resize_fill(count);
-        indexBatchDecoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
-        auto * dict_column = static_cast<ColumnVector<T> *>(dst.get());
-        if (dst->isNullable())
+        if (column->isNullable())
         {
-            auto & nullable_col = static_cast<ColumnNullable &>(*dst);
-            nullable_col.getNullMapData().resize_fill(dst->size() + count);
-            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
+            auto & nullable_col = static_cast<ColumnNullable &>(*column);
+            nullable_col.getNullMapData().resize_fill(column->size() + dict_codes.size());
+            auto mutable_nested_column = nullable_col.getNestedColumnPtr()->assumeMutable();
+            index(dict_codes, mutable_nested_column);
         }
         else
         {
-            auto values = dict->index(*indexes, count);
-            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
+            index(dict_codes, column);
+        }
+    }
+
+    void nextBatch(size_t count, MutableColumnPtr & dst, bool values) override
+    {
+        dst->reserve(count);
+
+        if (values)
+        {
+            indexes.resize_fill(count);
+            indexBatchDecoder.GetBatch(indexes.data(), static_cast<int32_t>(count));
+            if (dst->isNullable())
+            {
+                auto & nullable_col = static_cast<ColumnNullable &>(*dst);
+                nullable_col.getNullMapData().resize_fill(dst->size() + count);
+                auto mutable_nested_column = nullable_col.getNestedColumnPtr()->assumeMutable();
+                index(indexes, mutable_nested_column);
+            }
+            else
+            {
+                index(indexes, dst);
+            }
+        }
+        else
+        {
+            ColumnVector<UInt32> * codes;
+            if (dst->isNullable())
+            {
+                auto & nullable_col = static_cast<ColumnNullable &>(*dst);
+                codes = static_cast<ColumnVector<UInt32> *>(nullable_col.getNestedColumnPtr()->assumeMutable().get());
+            }
+            else
+            {
+                codes = static_cast<ColumnVector<UInt32> *>(dst.get());
+            }
+            auto old_size = dst->size();
+            codes->getData().resize_fill(old_size + count);
+            indexBatchDecoder.GetBatch(&codes->getData().data()[old_size], static_cast<int32_t>(count));
         }
     }
 
     size_t skipRows(size_t rows) override
     {
-        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
-        indexes_vector.getData().resize_fill(rows);
-        indexBatchDecoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(rows));
+        indexBatchDecoder.GetBatch(indexes.data(), static_cast<int32_t>(rows));
         return rows;
     }
 
 private:
-    RleBatchDecoder<uint32_t> indexBatchDecoder;
-    MutableColumnPtr dict;
-    MutableColumnPtr indexes;
+    void index(const PaddedPODArray<UInt32> & codes, MutableColumnPtr & dst)
+    {
+        ColumnVector<T> & dst_vector = static_cast<ColumnVector<T> &>(*dst);
+        auto & dst_data = dst_vector.getData();
+        auto old_size = dst->size();
+        dst_data.resize_fill(old_size + codes.size());
+        for (size_t i = 0; i < codes.size(); ++i)
+        {
+            dst_data[old_size + i] = dict[codes[i]];
+        }
+    }
+
+    RleBatchDecoder<UInt32> indexBatchDecoder;
+    PaddedPODArray<T> dict;
+    PaddedPODArray<UInt32> indexes;
 };
 
 
@@ -306,8 +342,7 @@ public:
 
     void setDict(size_t chunk_size, size_t num_values, Decoder & decoder) override
     {
-        indexes = ColumnVector<UInt32>::create();
-        indexes->reserve(chunk_size);
+        indexes.reserve(chunk_size);
         slices.resize(chunk_size);
         auto type = std::make_shared<DataTypeString>();
         dict = type->createColumn();
@@ -317,11 +352,18 @@ public:
 
     void getDictValues(MutableColumnPtr & column) override { column->insertRangeFrom(*dict, 0, dict->size()); }
 
-    void getDictValues(const std::vector<int32_t> & dict_codes, MutableColumnPtr & column) override
+    void getDictValues(const PaddedPODArray<UInt32> & dict_codes, MutableColumnPtr & column) override
     {
-        for (size_t i = 0; i < dict_codes.size(); i++)
+        if (column->isNullable())
         {
-            column->insertFrom(*dict, i);
+            auto & nullable_col = static_cast<ColumnNullable &>(*column);
+            nullable_col.getNullMapData().resize_fill(column->size() + dict_codes.size());
+            auto mutable_nested_column = nullable_col.getNestedColumnPtr()->assumeMutable();
+            index(dict_codes, mutable_nested_column);
+        }
+        else
+        {
+            index(dict_codes, column);
         }
     }
 
@@ -339,40 +381,93 @@ public:
         }
     }
 
-    void nextBatch(size_t count, MutableColumnPtr & dst) override
+    void nextBatch(size_t count, MutableColumnPtr & dst, bool values) override
     {
-        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
-        dst->reserve(count);
-        indexes_vector.getData().resize_fill(count);
-        index_batch_decoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(count));
-        auto * dict_column = static_cast<ColumnString*>(dict.get());
-        if (dst->isNullable())
+        if (values)
         {
-            auto & nullable_col = static_cast<ColumnNullable &>(*dst);
-            nullable_col.getNullMapData().resize_fill(dst->size() + count);
-            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
+            dst->reserve(count);
+            indexes.resize_fill(count);
+            index_batch_decoder.GetBatch(indexes.data(), static_cast<int32_t>(count));
+            if (dst->isNullable())
+            {
+                auto & nullable_col = static_cast<ColumnNullable &>(*dst);
+                nullable_col.getNullMapData().resize_fill(dst->size() + count);
+                auto mutable_nested_column = nullable_col.getNestedColumnPtr()->assumeMutable();
+                index(indexes, mutable_nested_column);
+            }
+            else
+            {
+                index(indexes, dst);
+            }
         }
         else
         {
-            auto values = dict->index(*indexes, count);
-            dict_column->template indexImplToColumn<UInt32>(indexes_vector.getData(), dst, count);
+            ColumnVector<UInt32> * codes;
+            if (dst->isNullable())
+            {
+                auto & nullable_col = static_cast<ColumnNullable &>(*dst);
+                nullable_col.getNullMapData().resize_fill(dst->size() + count);
+                codes = static_cast<ColumnVector<UInt32> *>(nullable_col.getNestedColumnPtr()->assumeMutable().get());
+            }
+            else
+            {
+                codes = static_cast<ColumnVector<UInt32> *>(dst.get());
+            }
+            auto old_size = dst->size();
+            codes->getData().resize_fill(old_size + count);
+            index_batch_decoder.GetBatch(&codes->getData().data()[old_size], static_cast<int32_t>(count));
         }
     }
 
     size_t skipRows(size_t rows) override
     {
-        auto & indexes_vector = static_cast<ColumnVector<UInt32>&>(*indexes);
-        indexes_vector.getData().resize_fill(rows);
-        index_batch_decoder.GetBatch(indexes_vector.getData().data(), static_cast<int32_t>(rows));
+        indexes.resize_fill(rows);
+        index_batch_decoder.GetBatch(indexes.data(), static_cast<int32_t>(rows));
         return rows;
     }
 
 private:
+    void index(const PaddedPODArray<UInt32> & codes, MutableColumnPtr & dst)
+    {
+        size_t count = codes.size();
+        if (count == 0)
+            return;
 
+        auto * res = static_cast<ColumnString *>(dst.get());
+        auto * dict_column = static_cast<ColumnString *>(dict.get());
 
-    RleBatchDecoder<uint32_t> index_batch_decoder;
+        auto & res_chars = res->getChars();
+        auto & res_offsets = res->getOffsets();
+
+        auto & dict_chars = dict_column->getChars();
+        auto & dict_offsets = dict_column->getOffsets();
+
+        size_t new_chars_size = 0;
+        for (size_t i = 0; i < count; ++i)
+            new_chars_size += (dict_column->byteSizeAt(codes[i]) - sizeof(UInt8));
+        auto res_chars_old_size = res_chars.size();
+        res_chars.resize_fill(res_chars_old_size + new_chars_size);
+        auto res_offsets_old_size = res_offsets.size();
+        res_offsets.resize_fill(res_offsets_old_size + count);
+
+        ColumnString::Offset current_new_offset = res_chars_old_size;
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            size_t j = codes[i];
+            size_t string_offset = dict_offsets[j - 1];
+            size_t string_size = dict_offsets[j] - string_offset;
+
+            memcpySmallAllowReadWriteOverflow15(&res_chars[current_new_offset], &dict_chars[string_offset], string_size);
+
+            current_new_offset += string_size;
+            res_offsets[res_offsets_old_size + i] = current_new_offset;
+        }
+    }
+
+    RleBatchDecoder<UInt32> index_batch_decoder;
     MutableColumnPtr dict;
-    MutableColumnPtr indexes;
+    PaddedPODArray<UInt32> indexes;
     std::vector<Slice> slices;
 };
 

@@ -99,8 +99,9 @@ TEST(Parquet, PageFilter)
 
     //    param.header.insert({string_type, "l_comment"});
     //    param.header.insert({string_type, "l_shipmode"});
-    //    param.header.insert({string_type, "l_returnflag"});
-    //    param.header.insert({string_type, "l_linestatus"});
+        param.header.insert({string_type, "l_returnflag"});
+        param.header.insert({string_type, "l_linestatus"});
+        param.header.insert({double_type, "l_tax"});
     param.header.insert({date_type, "l_shipdate"});
             param.header.insert({double_type, "l_quantity"});
     param.header.insert({double_type, "l_extendedprice"});
@@ -109,7 +110,7 @@ TEST(Parquet, PageFilter)
     //    param.header.insert({date_type, "l_receiptdate"});
 
     param.case_sensitive = false;
-    param.active_columns = {2, 3};
+    param.active_columns = {0, 1, 2, 4, 5, 6};
     //    param.skip_row_groups.insert(0);   // 3351607
     //    param.skip_row_groups.insert(1);   // 3351607
     //    param.skip_row_groups.insert(2);   // 3351607
@@ -128,29 +129,31 @@ TEST(Parquet, PageFilter)
     FunctionOverloadResolverPtr func_builder_and = std::make_unique<FunctionToOverloadResolverAdaptor>(std::make_shared<FunctionAnd>());
 
 
+//    const auto & l_shipdate = dag->addInput("l_shipdate", date_type);
+//    const auto & l_quantity = dag->addInput("l_quantity", double_type);
+//    const auto & l_discount = dag->addInput("l_discount", double_type);
+//    const auto & const_8766 = dag->addColumn({date_type->createColumnConst(1, 8766), date_type, "8766"});
+//    const auto & const_9131 = dag->addColumn({date_type->createColumnConst(1, 9131), date_type, "9131"});
+//    const auto & const_24 = dag->addColumn({double_type->createColumnConst(1, 24.0), double_type, "24"});
+//    const auto & const_005 = dag->addColumn({double_type->createColumnConst(1, 0.05), double_type, "0.05"});
+//    const auto & const_007 = dag->addColumn({double_type->createColumnConst(1, 0.07), double_type, "0.07"});
+//
+//    const auto & condition1_node = dag->addFunction(func_builder_ge, {&l_shipdate, &const_8766}, "");
+//    const auto & condition2_node = dag->addFunction(func_builder_lt, {&l_shipdate, &const_9131}, "");
+//    const auto & condition3_node = dag->addFunction(func_builder_ge, {&l_discount, &const_005}, "");
+//    const auto & condition4_node = dag->addFunction(func_builder_le, {&l_discount, &const_007}, "");
+//    const auto & condition5_node = dag->addFunction(func_builder_lt, {&l_quantity, &const_24}, "");
+//
+//    const auto & and_node_1 = dag->addFunction(func_builder_and, {&condition1_node, &condition2_node}, "");
+//    const auto & and_node_2 = dag->addFunction(func_builder_and, {&and_node_1, &condition3_node}, "");
+//    const auto & and_node_3 = dag->addFunction(func_builder_and, {&and_node_2, &condition4_node}, "");
+//    const auto & and_node_4 = dag->addFunction(func_builder_and, {&and_node_3, &condition5_node}, "");
+
     const auto & l_shipdate = dag->addInput("l_shipdate", date_type);
-    const auto & l_quantity = dag->addInput("l_quantity", double_type);
-    const auto & l_discount = dag->addInput("l_discount", double_type);
-    const auto & const_8766 = dag->addColumn({date_type->createColumnConst(1, 8766), date_type, "8766"});
-    const auto & const_9131 = dag->addColumn({date_type->createColumnConst(1, 9131), date_type, "9131"});
-    const auto & const_24 = dag->addColumn({double_type->createColumnConst(1, 24.0), double_type, "24"});
-    const auto & const_005 = dag->addColumn({double_type->createColumnConst(1, 0.05), double_type, "0.05"});
-    const auto & const_007 = dag->addColumn({double_type->createColumnConst(1, 0.07), double_type, "0.07"});
+    const auto & const_10472 = dag->addColumn({date_type->createColumnConst(1, 10472), date_type, "10472"});
+    const auto & condition1_node = dag->addFunction(func_builder_lt, {&l_shipdate, &const_10472}, "");
 
-    const auto & condition1_node = dag->addFunction(func_builder_ge, {&l_shipdate, &const_8766}, "");
-    const auto & condition2_node = dag->addFunction(func_builder_lt, {&l_shipdate, &const_9131}, "");
-    const auto & condition3_node = dag->addFunction(func_builder_ge, {&l_discount, &const_005}, "");
-    const auto & condition4_node = dag->addFunction(func_builder_le, {&l_discount, &const_007}, "");
-    const auto & condition5_node = dag->addFunction(func_builder_lt, {&l_quantity, &const_24}, "");
-
-    const auto & and_node_1 = dag->addFunction(func_builder_and, {&condition1_node, &condition2_node}, "");
-    const auto & and_node_2 = dag->addFunction(func_builder_and, {&and_node_1, &condition3_node}, "");
-    const auto & and_node_3 = dag->addFunction(func_builder_and, {&and_node_2, &condition4_node}, "");
-    const auto & and_node_4 = dag->addFunction(func_builder_and, {&and_node_3, &condition5_node}, "");
-
-
-
-    dag->addOrReplaceInOutputs(and_node_4);
+    dag->addOrReplaceInOutputs(condition1_node);
 param.filter = std::make_shared<PushDownFilter>(dag);
 param.groupFilter = param.filter->getRowGroupFilter();
 

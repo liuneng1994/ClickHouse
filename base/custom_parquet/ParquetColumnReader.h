@@ -13,7 +13,6 @@
 
 namespace DB
 {
-class StoredColumnReader;
 
 class ParquetColumnReader
 {
@@ -22,16 +21,18 @@ public:
 
     virtual ~ParquetColumnReader() = default;
 
-    virtual void prepare_batch(size_t num_records, MutableColumnPtr & column) = 0;
+    virtual void prepare_batch(size_t num_records, MutableColumnPtr & column, bool values) = 0;
     virtual void finish_batch() = 0;
 
-    void next_batch(size_t num_records, MutableColumnPtr & column)
+    void next_batch(size_t num_records, MutableColumnPtr & column, bool values = true)
     {
-        prepare_batch(num_records, column);
+        prepare_batch(num_records, column, values);
         finish_batch();
     }
 
     virtual bool canUseMinMaxStatics() { return reader->canUseMinMaxStatics(); }
+
+    virtual bool currentIsDict() {return reader->currentIsDict();}
 
     std::pair<ColumnPtr, ColumnPtr> readMinMaxColumn() {return reader->readMinMaxColumn();}
 
@@ -50,7 +51,7 @@ public:
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
     }
 
-    virtual void get_dict_values(const std::vector<int32_t> & /*dict_codes*/, MutableColumnPtr & /*column*/)
+    virtual void getDictValues(const PaddedPODArray<UInt32> & /*dict_codes*/, MutableColumnPtr & /*column*/)
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR, "getDictCodes not supported");
     }
@@ -75,7 +76,7 @@ public:
         reader = StoredColumnReader::create(opts, field, chunk_metadata);
     }
 
-    void prepare_batch(size_t num_records, MutableColumnPtr & dst) override { reader->readRecords(num_records, dst); }
+    void prepare_batch(size_t num_records, MutableColumnPtr & dst, bool values) override { reader->readRecords(num_records, dst, values); }
 
     void finish_batch() override { }
 
@@ -84,7 +85,13 @@ public:
         reader->getLevels(def_levels, rep_levels, num_levels);
     }
 
+    void getDictValues(const PaddedPODArray<UInt32, 4096> & codes, MutableColumnPtr & dst) override
+    {
+        reader->getDictValues(codes, dst);
+    }
+
     bool canUseMinMaxStatics() override { return reader->canUseMinMaxStatics(); }
+    bool currentIsDict() override {return reader->currentIsDict();}
 
     DataTypePtr getStatsType() override { return opts.stats_type; }
 
