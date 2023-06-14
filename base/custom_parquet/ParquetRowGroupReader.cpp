@@ -169,30 +169,47 @@ Chunk ParquetGroupReader::read(const std::vector<int> & read_columns, size_t row
         auto selection = param.filter->execute(condition_input);
         const auto & filter = checkAndGetColumn<ColumnVector<UInt8>>(*selection)->getData();
         ssize_t filtered_count = countBytesInFilter(filter);
+        bool need_filter = filtered_count == static_cast<ssize_t>(selection->size());
         FilterDescription filterDescription(*selection.get());
         for (const auto & item : condition_input.getColumnsWithTypeAndName())
         {
             if (column_name_to_idx.contains(item.name) && idx_in_chunk_to_result_idx_map.contains(column_name_to_idx[item.name]))
             {
-                auto filtered_column = filterDescription.filter(*item.column, filtered_count);
-                columns[idx_in_chunk_to_result_idx_map[column_name_to_idx[item.name]]] = filtered_column->assumeMutable();
+                if (need_filter)
+                {
+                    auto filtered_column = filterDescription.filter(*item.column, filtered_count);
+                    columns[idx_in_chunk_to_result_idx_map[column_name_to_idx[item.name]]] = filtered_column->assumeMutable();
+                }
+                else
+                {
+                    columns[idx_in_chunk_to_result_idx_map[column_name_to_idx[item.name]]] = item.column->assumeMutable();
+                }
             }
         }
         for (const auto & item : non_conditional_columns)
         {
-            auto column = readColumn(item, row_count, false);
-            auto filtered_column = filterDescription.filter(*column.second, filtered_count);
-            if (column.first)
+
+            if (need_filter)
             {
-                columns[idx_in_chunk_to_result_idx_map[item]] = filtered_column->assumeMutable();
+                auto column = readColumn(item, row_count, false);
+                auto filtered_column = filterDescription.filter(*column.second, filtered_count);
+                if (column.first)
+                {
+                    columns[idx_in_chunk_to_result_idx_map[item]] = filtered_column->assumeMutable();
+                }
+                else
+                {
+                    auto res = param.read_cols[item].col_type_in_chunk->createColumn();
+                    res->reserve(filtered_count);
+                    const auto & filtered_data = static_cast<const ColumnVector<UInt32> *>(filtered_column.get())->getData();
+                    column_readers[item]->getDictValues(filtered_data, res);
+                    columns[idx_in_chunk_to_result_idx_map[item]] = std::move(res);
+                }
             }
             else
             {
-                auto res = param.read_cols[item].col_type_in_chunk->createColumn();
-                res->reserve(filtered_count);
-                const auto & filtered_data = static_cast<const ColumnVector<UInt32> *>(filtered_column.get())->getData();
-                column_readers[item]->getDictValues(filtered_data, res);
-                columns[idx_in_chunk_to_result_idx_map[item]] = std::move(res);
+                auto column = readColumn(item, row_count, true);
+                columns[idx_in_chunk_to_result_idx_map[item]] = column.second->assumeMutable();
             }
         }
     }
