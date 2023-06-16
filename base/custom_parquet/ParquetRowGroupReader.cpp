@@ -169,7 +169,7 @@ Chunk ParquetGroupReader::read(const std::vector<int> & read_columns, size_t row
         auto selection = param.filter->execute(condition_input);
         const auto & filter = checkAndGetColumn<ColumnVector<UInt8>>(*selection)->getData();
         ssize_t filtered_count = countBytesInFilter(filter);
-        bool need_filter = filtered_count == static_cast<ssize_t>(selection->size());
+        bool need_filter = filtered_count != static_cast<ssize_t>(selection->size());
         FilterDescription filterDescription(*selection.get());
         for (const auto & item : condition_input.getColumnsWithTypeAndName())
         {
