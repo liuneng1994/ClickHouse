@@ -146,6 +146,14 @@ StringRef ColumnNullable::serializeValueIntoArena(size_t n, Arena & arena, char 
     static constexpr auto s = sizeof(arr[0]);
     char * pos;
 
+    if (nested_type == TypeIndex::String)
+    {
+        return static_cast<const ColumnString *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
+    }
+    else if (nested_type == TypeIndex::Int64)
+    {
+        return static_cast<const ColumnInt64 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
+    }
     switch (nested_type)
     {
         case TypeIndex::UInt8:
@@ -166,8 +174,8 @@ StringRef ColumnNullable::serializeValueIntoArena(size_t n, Arena & arena, char 
             return static_cast<const ColumnInt16 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::Int32:
             return static_cast<const ColumnInt32 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
-        case TypeIndex::Int64:
-            return static_cast<const ColumnInt64 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
+//        case TypeIndex::Int64:
+//            return static_cast<const ColumnInt64 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::Int128:
             return static_cast<const ColumnInt128 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::Int256:
@@ -184,8 +192,8 @@ StringRef ColumnNullable::serializeValueIntoArena(size_t n, Arena & arena, char 
             return static_cast<const ColumnDateTime *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::DateTime64:
             return static_cast<const ColumnDateTime64 *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
-        case TypeIndex::String:
-            return static_cast<const ColumnString *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
+//        case TypeIndex::String:
+//            return static_cast<const ColumnString *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::FixedString:
             return static_cast<const ColumnFixedString *>(nested_column.get())->serializeValueIntoArena(n, arena, begin, &arr[n]);
         case TypeIndex::Decimal32:
