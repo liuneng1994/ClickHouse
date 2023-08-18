@@ -218,6 +218,8 @@ private:
     WrappedPtr null_map;
     // optimize serializeValueIntoArena
     TypeIndex nested_type;
+    bool is_string;
+    bool is_number_or_fixed_string;
 
     template <bool negative>
     void applyNullMapImpl(const NullMap & map);
