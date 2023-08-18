@@ -215,6 +215,8 @@ public:
 private:
     WrappedPtr nested_column;
     WrappedPtr null_map;
+    bool is_string;
+    bool is_number_or_fixed_string;
 
     template <bool negative>
     void applyNullMapImpl(const NullMap & map);
