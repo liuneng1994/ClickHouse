@@ -449,8 +449,6 @@ private:
     bool shrink_blocks = false;
     Int64 memory_usage_before_adding_blocks = 0;
 
-    std::shared_ptr<StreamReplicateBlocks> current_result;
-
     Poco::Logger * log;
 
     /// Should be set via setLock to protect hash table from modification from StorageJoin
