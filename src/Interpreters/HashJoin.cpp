@@ -1090,12 +1090,8 @@ public:
         }
     }
 
-//    template <bool has_defaults>
     void appendFromBlock(const Block & block, size_t row_num)
     {
-//        if constexpr (has_defaults)
-//            applyLazyDefaults();
-
 #ifndef NDEBUG
         /// Like assertBlocksHaveEqualStructure but doesn't check low cardinality
         assertBlockEqualsStructureUpToLowCard(sample_block, block);
@@ -1150,16 +1146,6 @@ public:
         lazy_right_columns.emplace_back(RowRef(nullptr, 0));
     }
 
-//    void applyLazyDefaults()
-//    {
-//        if (lazy_defaults_count)
-//        {
-//            for (size_t j = 0, size = right_indexes.size(); j < size; ++j)
-//                JoinCommon::addDefaultValues(*columns[j], type_name[j].type, lazy_defaults_count);
-//            lazy_defaults_count = 0;
-//        }
-//    }
-
     const IColumn & leftAsofKey() const { return *left_asof_key; }
 
     std::vector<JoinOnKeyColumns> join_on_keys;
@@ -1187,7 +1173,6 @@ private:
         type_name.emplace_back(src_column.type, src_column.name, qualified_name);
     }
 };
-
 
 class StreamReplicateBlocks final: public IBlocksStream
 {
@@ -1230,13 +1215,10 @@ private:
     bool stream = true;
 };
 
-
 StreamReplicateBlocks::StreamReplicateBlocks(const Block & block_, std::vector<size_t> right_col_idx_, std::shared_ptr<AddedColumns> added_columns_, std::unique_ptr<IColumn::Offsets> offsets_to_replicate_, const std::vector<size_t> & need_replicate_pos_, size_t max_block_size_)
     : block(block_), right_col_idx(right_col_idx_), added_columns(added_columns_), offsets_to_replicate(std::move(offsets_to_replicate_)), need_replicate_pos(need_replicate_pos_), max_block_size(max_block_size_)
 {
 }
-
-
 
 Block StreamReplicateBlocks::nextImpl()
 {
