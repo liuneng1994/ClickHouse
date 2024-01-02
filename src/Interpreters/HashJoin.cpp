@@ -1102,19 +1102,23 @@ public:
         {
             auto& col = columns[i];
             size_t default_count = 0;
-            for (size_t j = 0; j < lazy_output.blocks.size(); ++j)
+            auto apply_default = [&]()
             {
-                if (!lazy_output.blocks[j])
-                {
-//                    type_name[i].type->insertDefaultInto(*col);
-                    default_count ++;
-                    continue;
-                }
                 if (default_count > 0)
                 {
                     JoinCommon::addDefaultValues(*col, type_name[i].type, default_count);
                     default_count = 0;
                 }
+            };
+
+            for (size_t j = 0; j < lazy_output.blocks.size(); ++j)
+            {
+                if (!lazy_output.blocks[j])
+                {
+                    default_count ++;
+                    continue;
+                }
+                apply_default();
                 const auto & column_from_block = reinterpret_cast<const Block *>(lazy_output.blocks[j])->getByPosition(right_indexes[i]);
                 /// If it's joinGetOrNull, we need to wrap not-nullable columns in StorageJoin.
                 if (is_join_get)
@@ -1128,11 +1132,7 @@ public:
                 }
                 col->insertFrom(*column_from_block.column, lazy_output.row_nums[j]);
             }
-            if (default_count > 0)
-            {
-                JoinCommon::addDefaultValues(*col, type_name[i].type, default_count);
-                default_count = 0;
-            }
+            apply_default();
         }
     }
 
@@ -1142,7 +1142,6 @@ public:
     }
 
 
-    template <bool has_defaults>
     void appendFromBlock(const Block & block, size_t row_num)
     {
 #ifndef NDEBUG
@@ -1186,16 +1185,6 @@ public:
         }
     }
 
-    void applyLazyDefaults()
-    {
-        if (lazy_defaults_count)
-        {
-            for (size_t j = 0, size = right_indexes.size(); j < size; ++j)
-                JoinCommon::addDefaultValues(*columns[j], type_name[j].type, lazy_defaults_count);
-            lazy_defaults_count = 0;
-        }
-    }
-
     const IColumn & leftAsofKey() const { return *left_asof_key; }
 
     std::vector<JoinOnKeyColumns> join_on_keys;
@@ -1232,7 +1221,6 @@ private:
     std::vector<ColumnNullable *> nullable_column_ptrs;
 
     std::vector<size_t> right_indexes;
-    size_t lazy_defaults_count = 0;
     bool has_columns_to_add;
     /// for ASOF
     const IColumn * left_asof_key = nullptr;
@@ -1344,7 +1332,7 @@ public:
     }
 };
 
-template <typename Map, bool add_missing, bool multiple_disjuncts>
+template <typename Map, bool multiple_disjuncts>
 void addFoundRowAll(
     const typename Map::mapped_type & mapped,
     AddedColumns & added,
@@ -1352,9 +1340,6 @@ void addFoundRowAll(
     KnownRowsHolder<multiple_disjuncts> & known_rows [[maybe_unused]],
     JoinStuff::JoinUsedFlags * used_flags [[maybe_unused]])
 {
-    if constexpr (add_missing)
-        added.applyLazyDefaults();
-
     if constexpr (multiple_disjuncts)
     {
         std::unique_ptr<std::vector<KnownRowsHolder<true>::Type>> new_known_rows_ptr;
@@ -1363,7 +1348,7 @@ void addFoundRowAll(
         {
             if (!known_rows.isKnown(std::make_pair(it->block, it->row_num)))
             {
-                added.appendFromBlock<false>(*it->block, it->row_num);
+                added.appendFromBlock(*it->block, it->row_num);
                 ++current_offset;
                 if (!new_known_rows_ptr)
                 {
@@ -1387,7 +1372,7 @@ void addFoundRowAll(
     {
         for (auto it = mapped.begin(); it.ok(); ++it)
         {
-            added.appendFromBlock<false>(*it->block, it->row_num);
+            added.appendFromBlock(*it->block, it->row_num);
             ++current_offset;
         }
     }
@@ -1476,7 +1461,7 @@ NO_INLINE size_t joinRightColumns(
                         else
                             used_flags.template setUsed<join_features.need_flags, multiple_disjuncts>(find_result);
 
-                        added_columns.appendFromBlock<join_features.add_missing>(*row_ref.block, row_ref.row_num);
+                        added_columns.appendFromBlock(*row_ref.block, row_ref.row_num);
                     }
                     else
                         addNotFoundRow<join_features.add_missing, join_features.need_replication>(added_columns, current_offset);
@@ -1486,7 +1471,7 @@ NO_INLINE size_t joinRightColumns(
                     setUsed<need_filter>(added_columns.filter, i);
                     used_flags.template setUsed<join_features.need_flags, multiple_disjuncts>(find_result);
                     auto used_flags_opt = join_features.need_flags ? &used_flags : nullptr;
-                    addFoundRowAll<Map, join_features.add_missing>(mapped, added_columns, current_offset, known_rows, used_flags_opt);
+                    addFoundRowAll<Map>(mapped, added_columns, current_offset, known_rows, used_flags_opt);
                 }
                 else if constexpr ((join_features.is_any_join || join_features.is_semi_join) && join_features.right)
                 {
@@ -1496,7 +1481,7 @@ NO_INLINE size_t joinRightColumns(
                     {
                         auto used_flags_opt = join_features.need_flags ? &used_flags : nullptr;
                         setUsed<need_filter>(added_columns.filter, i);
-                        addFoundRowAll<Map, join_features.add_missing>(mapped, added_columns, current_offset, known_rows, used_flags_opt);
+                        addFoundRowAll<Map>(mapped, added_columns, current_offset, known_rows, used_flags_opt);
                     }
                 }
                 else if constexpr (join_features.is_any_join && KIND == JoinKind::Inner)
@@ -1507,7 +1492,7 @@ NO_INLINE size_t joinRightColumns(
                     if (used_once)
                     {
                         setUsed<need_filter>(added_columns.filter, i);
-                        added_columns.appendFromBlock<join_features.add_missing>(*mapped.block, mapped.row_num);
+                        added_columns.appendFromBlock(*mapped.block, mapped.row_num);
                     }
 
                     break;
@@ -1525,7 +1510,7 @@ NO_INLINE size_t joinRightColumns(
                 {
                     setUsed<need_filter>(added_columns.filter, i);
                     used_flags.template setUsed<join_features.need_flags, multiple_disjuncts>(find_result);
-                    added_columns.appendFromBlock<join_features.add_missing>(*mapped.block, mapped.row_num);
+                    added_columns.appendFromBlock(*mapped.block, mapped.row_num);
 
                     if (join_features.is_any_or_semi_join)
                     {
@@ -1548,7 +1533,6 @@ NO_INLINE size_t joinRightColumns(
         }
     }
 
-    added_columns.applyLazyDefaults();
     return i;
 }
 
