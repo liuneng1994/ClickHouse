@@ -81,13 +81,14 @@ std::vector<std::string> MetadataStorageFromPlainObjectStorage::listDirectory(co
     }
 
     std::unordered_set<std::string> duplicates_filter;
+    auto prefix = object_storage->generateObjectKeyForPath("example");
     for (auto & row : result)
     {
-        chassert(row.starts_with(abs_key));
-        row.erase(0, abs_key.size());
-        auto slash_pos = row.find_first_of('/');
-        if (slash_pos != std::string::npos)
-            row.erase(slash_pos, row.size() - slash_pos);
+        chassert(row.starts_with(prefix.getPrefix()));
+        row.erase(0, prefix.getPrefix().size());
+//        auto slash_pos = row.find_first_of('/');
+//        if (slash_pos != std::string::npos)
+//            row.erase(slash_pos, row.size() - slash_pos);
         duplicates_filter.insert(row);
     }
 
