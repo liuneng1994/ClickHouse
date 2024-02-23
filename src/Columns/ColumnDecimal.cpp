@@ -343,6 +343,19 @@ void ColumnDecimal<T>::insertData(const char * src, size_t /*length*/)
 }
 
 template <is_decimal T>
+void ColumnDecimal<T>::insertIndicesFrom(const IColumn & src, const IColumn::Selector & selector)
+{
+    size_t old_size = data.size();
+    data.resize(old_size + selector.size());
+    const ColumnDecimal & src_dec = assert_cast<const ColumnDecimal &>(src);
+    const Container & src_data = src_dec.getData();
+    for (size_t i = 0; i < selector.size(); i++)
+    {
+        data[old_size + i] = src_data[selector[i]];
+    }
+}
+
+template <is_decimal T>
 void ColumnDecimal<T>::insertRangeFrom(const IColumn & src, size_t start, size_t length)
 {
     const ColumnDecimal & src_vec = assert_cast<const ColumnDecimal &>(src);

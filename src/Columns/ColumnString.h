@@ -192,6 +192,7 @@ public:
         hash.update(reinterpret_cast<const char *>(offsets.data()), offsets.size() * sizeof(offsets[0]));
         hash.update(reinterpret_cast<const char *>(chars.data()), chars.size() * sizeof(chars[0]));
     }
+    void insertIndicesFrom(const IColumn & src, const Selector & selector) override;
 
     void insertRangeFrom(const IColumn & src, size_t start, size_t length) override;
 

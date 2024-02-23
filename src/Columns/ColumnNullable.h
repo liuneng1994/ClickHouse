@@ -66,12 +66,14 @@ public:
     StringRef serializeValueIntoArena(size_t n, Arena & arena, char const *& begin, const UInt8 * null_bit) const override;
     const char * deserializeAndInsertFromArena(const char * pos) override;
     const char * skipSerializedInArena(const char * pos) const override;
+    void insertIndicesFrom(const IColumn & src, const Selector & selector) override;
     void insertRangeFrom(const IColumn & src, size_t start, size_t length) override;
     void insertRangeSelective(const IColumn & src, const IColumn::Selector & selector, size_t selector_start, size_t length) override;
     void insert(const Field & x) override;
     void insertFrom(const IColumn & src, size_t n) override;
 
     void insertFromNotNullable(const IColumn & src, size_t n);
+    void insertIndicesFromNotNullable(const IColumn & src, const IColumn::Selector & selector);
     void insertRangeFromNotNullable(const IColumn & src, size_t start, size_t length);
     void insertManyFromNotNullable(const IColumn & src, size_t position, size_t length);
 

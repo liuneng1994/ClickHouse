@@ -121,6 +121,11 @@ public:
         return data->isNullAt(0);
     }
 
+    void insertIndicesFrom(const IColumn &, const Selector & selector) override
+    {
+        s += selector.size();
+    }
+
     void insertRangeFrom(const IColumn &, size_t /*start*/, size_t length) override
     {
         s += length;

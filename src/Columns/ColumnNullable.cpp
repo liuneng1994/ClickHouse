@@ -239,6 +239,15 @@ const char * ColumnNullable::skipSerializedInArena(const char * pos) const
     return pos;
 }
 
+void ColumnNullable::insertIndicesFrom(const IColumn & src, const Selector & selector)
+{
+    const ColumnNullable & nullable_col = assert_cast<const ColumnNullable &>(src);
+    const IColumn & src_null_map = *nullable_col.null_map;
+    const IColumn & src_nested_column = *nullable_col.nested_column;
+    getNullMapColumn().insertIndicesFrom(src_null_map, selector);
+    getNestedColumn().insertIndicesFrom(src_nested_column, selector);
+}
+
 void ColumnNullable::insertRangeFrom(const IColumn & src, size_t start, size_t length)
 {
     const ColumnNullable & nullable_col = assert_cast<const ColumnNullable &>(src);
@@ -278,6 +287,12 @@ void ColumnNullable::insertFromNotNullable(const IColumn & src, size_t n)
 {
     getNestedColumn().insertFrom(src, n);
     getNullMapData().push_back(0);
+}
+
+void ColumnNullable::insertIndicesFromNotNullable(const IColumn & src, const IColumn::Selector & selector)
+{
+    getNestedColumn().insertIndicesFrom(src, selector);
+    getNullMapColumn().insertMany(0, selector.size());
 }
 
 void ColumnNullable::insertRangeFromNotNullable(const IColumn & src, size_t start, size_t length)

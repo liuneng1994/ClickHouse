@@ -240,6 +240,8 @@ public:
         data.push_back(static_cast<T>(x.get<T>()));
     }
 
+    void insertIndicesFrom(const IColumn & src, const IColumn::Selector & selector) override;
+
     void insertRangeFrom(const IColumn & src, size_t start, size_t length) override;
 
     ColumnPtr filter(const IColumn::Filter & filt, ssize_t result_size_hint) const override;

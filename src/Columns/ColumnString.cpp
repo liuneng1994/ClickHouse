@@ -107,6 +107,11 @@ void ColumnString::updateWeakHash32(WeakHash32 & hash) const
     }
 }
 
+void ColumnString::insertIndicesFrom(const IColumn & src, const Selector & selector)
+{
+    for (auto sel : selector)
+        ColumnString::insertFrom(src, sel);
+}
 
 void ColumnString::insertRangeFrom(const IColumn & src, size_t start, size_t length)
 {

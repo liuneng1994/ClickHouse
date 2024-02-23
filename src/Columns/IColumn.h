@@ -379,6 +379,7 @@ public:
     using ColumnIndex = UInt64;
     using Selector = PaddedPODArray<ColumnIndex>;
     [[nodiscard]] virtual std::vector<MutablePtr> scatter(ColumnIndex num_columns, const Selector & selector) const = 0;
+    virtual void insertIndicesFrom(const IColumn & src, const Selector & selector);
 
     /// This function will get row index from selector and append the data to this column.
     /// This function will handle indexes start from input 'selector_start' and will append 'size' times
