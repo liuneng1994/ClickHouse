@@ -22,12 +22,13 @@ void DiskObjectStorageMetadata::deserialize(ReadBuffer & buf)
 {
     readIntText(version, buf);
     assertChar('\n', buf);
-
-    if (version < VERSION_ABSOLUTE_PATHS || version > VERSION_FULL_OBJECT_KEY)
+    bool has_offset = version & VERSION_COMPACT_MULTI_FILE;
+    auto base_version = has_offset ? version - VERSION_COMPACT_MULTI_FILE : version;
+    if (base_version < VERSION_ABSOLUTE_PATHS || base_version > VERSION_FULL_OBJECT_KEY)
         throw Exception(
             ErrorCodes::UNKNOWN_FORMAT,
             "Unknown metadata file version. Path: {}. Version: {}. Maximum expected version: {}",
-            metadata_file_path, toString(version), toString(VERSION_FULL_OBJECT_KEY));
+            metadata_file_path, toString(base_version), toString(VERSION_FULL_OBJECT_KEY));
 
     UInt32 keys_count;
     readIntText(keys_count, buf);
@@ -39,6 +40,15 @@ void DiskObjectStorageMetadata::deserialize(ReadBuffer & buf)
 
     for (UInt32 i = 0; i < keys_count; ++i)
     {
+        if (has_offset)
+        {
+            UInt64 offset;
+            readIntText(offset, buf);
+            assertChar('\t', buf);
+
+            keys_with_meta[i].metadata.offset = offset;
+        }
+
         UInt64 object_size;
         readIntText(object_size, buf);
         assertChar('\t', buf);
@@ -120,7 +130,7 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
     if (!inline_data.empty() && write_version < VERSION_INLINE_DATA)
         write_version = VERSION_INLINE_DATA;
 
-    chassert(write_version >= VERSION_ABSOLUTE_PATHS && write_version <= VERSION_FULL_OBJECT_KEY);
+    // chassert(write_version >= VERSION_ABSOLUTE_PATHS && write_version <= VERSION_FULL_OBJECT_KEY);
     writeIntText(write_version, buf);
 
     writeChar('\n', buf);
@@ -129,9 +139,14 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
     writeChar('\t', buf);
     writeIntText(total_size, buf);
     writeChar('\n', buf);
-
+    bool serialize_offset = version & VERSION_COMPACT_MULTI_FILE;
     for (const auto & [object_key, object_meta] : keys_with_meta)
     {
+        if (serialize_offset)
+        {
+            writeIntText(object_meta.offset, buf);
+            writeChar('\t', buf);
+        }
         writeIntText(object_meta.size_bytes, buf);
         writeChar('\t', buf);
 
@@ -205,7 +220,31 @@ void DiskObjectStorageMetadata::addObject(ObjectStorageKey key, size_t size)
     }
 
     total_size += size;
-    keys_with_meta.emplace_back(std::move(key), ObjectMetadata{size, {}, {}});
+    keys_with_meta.emplace_back(std::move(key), ObjectMetadata{0, size, {}, {}});
+}
+
+void DiskObjectStorageMetadata::addObject(ObjectStorageKey key, size_t offset, size_t size)
+{
+    if (!key.hasPrefix())
+    {
+        version = VERSION_FULL_OBJECT_KEY;
+
+        bool storage_metadata_write_full_object_key = getWriteFullObjectKeySetting();
+        if (!storage_metadata_write_full_object_key)
+        {
+            LoggerPtr logger = getLogger("DiskObjectStorageMetadata");
+            LOG_WARNING(
+                logger,
+                "Metadata file {} has at least one key {} without fixed common key prefix."
+                "That forces using VERSION_FULL_OBJECT_KEY version for that metadata file."
+                "However storage_metadata_write_full_object_key is off.",
+                metadata_file_path,
+                key.serialize());
+        }
+    }
+    version |= VERSION_COMPACT_MULTI_FILE;
+    total_size += size;
+    keys_with_meta.emplace_back(std::move(key), ObjectMetadata{offset, size, {}, {}});
 }
 
 ObjectKeyWithMetadata DiskObjectStorageMetadata::popLastObject()
