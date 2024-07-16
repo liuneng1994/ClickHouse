@@ -59,7 +59,7 @@ void DiskObjectStorageMetadata::deserialize(ReadBuffer & buf)
         readEscapedString(key_value, buf);
         assertChar('\n', buf);
 
-        if (version == VERSION_ABSOLUTE_PATHS)
+        if (base_version == VERSION_ABSOLUTE_PATHS)
         {
             if (!key_value.starts_with(compatible_key_prefix))
                 throw Exception(
@@ -72,11 +72,11 @@ void DiskObjectStorageMetadata::deserialize(ReadBuffer & buf)
             keys_with_meta[i].key = ObjectStorageKey::createAsRelative(
                 compatible_key_prefix, key_value.substr(compatible_key_prefix.size()));
         }
-        else if (version < VERSION_FULL_OBJECT_KEY)
+        else if (base_version < VERSION_FULL_OBJECT_KEY)
         {
             keys_with_meta[i].key = ObjectStorageKey::createAsRelative(compatible_key_prefix, key_value);
         }
-        else if (version >= VERSION_FULL_OBJECT_KEY)
+        else if (base_version >= VERSION_FULL_OBJECT_KEY)
         {
             keys_with_meta[i].key = ObjectStorageKey::createAsAbsolute(key_value);
         }
@@ -85,13 +85,13 @@ void DiskObjectStorageMetadata::deserialize(ReadBuffer & buf)
     readIntText(ref_count, buf);
     assertChar('\n', buf);
 
-    if (version >= VERSION_READ_ONLY_FLAG)
+    if (base_version >= VERSION_READ_ONLY_FLAG)
     {
         readBoolText(read_only, buf);
         assertChar('\n', buf);
     }
 
-    if (version >= VERSION_INLINE_DATA)
+    if (base_version >= VERSION_INLINE_DATA)
     {
         readEscapedString(inline_data, buf);
         assertChar('\n', buf);
@@ -113,7 +113,7 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
 
     bool storage_metadata_write_full_object_key = getWriteFullObjectKeySetting();
 
-    if (version == VERSION_FULL_OBJECT_KEY && !storage_metadata_write_full_object_key)
+    if ((version & VERSION_FULL_OBJECT_KEY) == VERSION_FULL_OBJECT_KEY && !storage_metadata_write_full_object_key)
     {
         LoggerPtr logger = getLogger("DiskObjectStorageMetadata");
         LOG_WARNING(
@@ -123,7 +123,8 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
             metadata_file_path);
     }
 
-    UInt32 write_version = version;
+    bool serialize_offset = version & VERSION_COMPACT_MULTI_FILE;
+    UInt32 write_version = serialize_offset ? version - VERSION_COMPACT_MULTI_FILE : version;
     if (storage_metadata_write_full_object_key)
         write_version = VERSION_FULL_OBJECT_KEY;
 
@@ -131,7 +132,9 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
         write_version = VERSION_INLINE_DATA;
 
     // chassert(write_version >= VERSION_ABSOLUTE_PATHS && write_version <= VERSION_FULL_OBJECT_KEY);
-    writeIntText(write_version, buf);
+    int actual_version = write_version;
+    if (serialize_offset) actual_version += VERSION_COMPACT_MULTI_FILE;
+    writeIntText(actual_version, buf);
 
     writeChar('\n', buf);
 
@@ -139,7 +142,6 @@ void DiskObjectStorageMetadata::serialize(WriteBuffer & buf, bool sync) const
     writeChar('\t', buf);
     writeIntText(total_size, buf);
     writeChar('\n', buf);
-    bool serialize_offset = version & VERSION_COMPACT_MULTI_FILE;
     for (const auto & [object_key, object_meta] : keys_with_meta)
     {
         if (serialize_offset)
