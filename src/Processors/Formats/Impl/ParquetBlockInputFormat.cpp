@@ -665,8 +665,8 @@ std::shared_ptr<arrow::RecordBatchReader> ParquetBlockInputFormat::RowGroupPrefe
     if (next_row_group_idx >= row_group_batch.row_groups_idxs.size()) return nullptr;
     std::shared_ptr<arrow::RecordBatchReader> reader;
     THROW_ARROW_NOT_OK(row_group_batch.file_reader->GetRecordBatchReader({row_group_batch.row_groups_idxs[next_row_group_idx]}, column_indices, &reader));
-    prefetchNextRowGroupReader();
     ++next_row_group_idx;
+    prefetchNextRowGroupReader();
     return reader;
 }
 void ParquetBlockInputFormat::RowGroupPrefetchIterator::prefetchNextRowGroupReader()
