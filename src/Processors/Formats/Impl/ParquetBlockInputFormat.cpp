@@ -551,8 +551,8 @@ void ParquetBlockInputFormat::initializeRowGroupBatchReader(size_t row_group_bat
     //
     // This adds one unnecessary copy. We should probably do coalescing and prefetch scheduling on
     // our side instead.
-    arrow_properties.set_pre_buffer(true);
-    auto cache_options = arrow::io::CacheOptions::LazyDefaults();
+    arrow_properties.set_pre_buffer(false);
+    auto cache_options = arrow::io::CacheOptions::Defaults();
     cache_options.hole_size_limit = min_bytes_for_seek;
     cache_options.range_size_limit = 1l << 40; // reading the whole row group at once is fine
     arrow_properties.set_cache_options(cache_options);
