@@ -184,7 +184,7 @@ size_t CompressedReadBufferBase::readCompressedData(size_t & size_decompressed, 
     /// Is whole compressed block located in 'compressed_in->' buffer?
     if (!always_copy &&
         compressed_in->offset() >= header_size + sizeof(Checksum) &&
-        compressed_in->available() >= (size_compressed_without_checksum - header_size) + additional_size_at_the_end_of_buffer + sizeof(Checksum))
+        compressed_in->available() >= size_compressed_without_checksum - header_size)
     {
         compressed_in->position() -= header_size;
         compressed_buffer = compressed_in->position();
